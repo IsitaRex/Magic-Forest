@@ -25,6 +25,8 @@ public class MapGenerator : MonoBehaviour
 	public int numberOfDragons = 3; // Number of dragons to place
 	private NPBehave.Root dragonBehaviorTree;
 	private List<GameObject> dragons = new List<GameObject>(); // List to store all dragon instances
+	private GameObject[] treePrefabs; // Array to store the tree prefabs
+	private List<GameObject> placedTrees = new List<GameObject>(); // List to store all instantiated trees
 
 
 	/*
@@ -32,6 +34,13 @@ public class MapGenerator : MonoBehaviour
 	 */
 	void Start()
 	{
+		treePrefabs = new GameObject[]
+    {
+        Resources.Load<GameObject>("Tree1"),
+        Resources.Load<GameObject>("Tree2"),
+        Resources.Load<GameObject>("Tree3")
+    };
+
 		GenerateMap();
 	}
 
@@ -149,15 +158,45 @@ public class MapGenerator : MonoBehaviour
 		return x >= 0 && x < width && y >= 0 && y < height;
 	}
 
-void AddTrees()
+void ClearTrees()
 {
+    foreach (GameObject tree in placedTrees)
+    {
+        if (tree != null)
+        {
+            Destroy(tree);
+        }
+    }
+    placedTrees.Clear(); // Clear the list after destroying the trees
+}
+void PlaceTrees()
+{
+		ClearTrees();
     for (int x = 0; x < width; x++)
     {
         for (int y = 0; y < height; y++)
         {
-            if (map[x, y] == 1 && UnityEngine.Random.Range(0, 100) < 20) // 20% chance to place a tree
+            // Only place trees on non-empty spots
+            if (map[x, y] != 0 && UnityEngine.Random.Range(0, 100) < 20) // 20% chance to place a tree
             {
-                map[x, y] = 2; // Mark this cell as a tree
+                // Select a random tree prefab
+                GameObject treePrefab = treePrefabs[UnityEngine.Random.Range(0, treePrefabs.Length)];
+
+                // Calculate the position for the tree
+                Vector3 position = new Vector3(
+                    -width / 2 + x + 0.5f,
+                    0, // Adjust Y-axis if needed
+                    -height / 2 + y + 0.5f
+                );
+
+                // Instantiate the tree
+                GameObject tree = Instantiate(treePrefab, position, Quaternion.identity);
+
+                // Scale down the tree
+                tree.transform.localScale = new Vector3(0.15f, 0.15f, 0.15f); // Adjust scale as needed
+
+                // Add the tree to the list
+                placedTrees.Add(tree);
             }
         }
     }
@@ -168,7 +207,7 @@ void AddTrees()
 	 */
 	void ProcessMap()
 	{
-		// AddTrees();
+		PlaceTrees();
 	}
 
 	void AddMapBorder()
