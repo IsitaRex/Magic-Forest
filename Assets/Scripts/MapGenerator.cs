@@ -27,7 +27,7 @@ public class MapGenerator : MonoBehaviour
 	private List<GameObject> dragons = new List<GameObject>(); // List to store all dragon instances
 	private GameObject[] treePrefabs; // Array to store the tree prefabs
 	private List<GameObject> placedTrees = new List<GameObject>(); // List to store all instantiated trees
-
+	private Vector2Int templeLocation; // Store the location of the temple
 
 	/*
 	 * Generate the map on start, on mouse click
@@ -60,7 +60,7 @@ public class MapGenerator : MonoBehaviour
 		PopulateMap();
 
 		// Stage 2: apply cellular automata rules
-		for (int i = 0; i < 5; i++)
+		for (int i = 0; i < 3; i++)
 		{
 			SmoothMap();
 		}
@@ -83,7 +83,7 @@ public class MapGenerator : MonoBehaviour
     {
 		RandomFillMap();
     }
-
+	
 	void RandomFillMap()
 	{
 		if (useRandomSeed)
@@ -107,6 +107,7 @@ public class MapGenerator : MonoBehaviour
 				}
 			}
 		}
+		 BuildTempleRegion(20, 0.7f);
 	}
 
 	/*
@@ -251,7 +252,7 @@ void PlaceDragons()
     dragons.Clear();
 
     // Load the dragon prefab
-    GameObject dragonPrefab = Resources.Load<GameObject>("DragonParent");
+    GameObject dragonPrefab = Resources.Load<GameObject>("Dragoncito");
     if (dragonPrefab == null)
     {
         Debug.LogError("Dragon prefab not found in Resources folder!");
@@ -287,7 +288,8 @@ void PlaceDragons()
             );
 
             // Instantiate the dragon
-            GameObject dragon = Instantiate(dragonPrefab, position, Quaternion.identity);
+            // GameObject dragon = Instantiate(dragonPrefab, position, Quaternion.identity);
+            GameObject dragon = Instantiate(dragonPrefab, position, Quaternion.Euler(90, 0, 0));
 
             // Apply the scale
             dragon.transform.localScale = dragonScale;
@@ -352,6 +354,75 @@ void AddDragonBehavior(GameObject dragon, Vector2Int startPosition)
     dragonBehaviorTree = new NPBehave.Root(new NPBehave.Repeater(sequence));
     dragonBehaviorTree.Start();
 }
-
+void BuildTempleRegion(int guaranteedLayers, float probabilityDecayRate)
+{
+    System.Random pseudoRandom = new System.Random(seed.GetHashCode());
+    
+    // Choose a random point not too close to the edges
+    int templeX = pseudoRandom.Next(width / 4, width * 3 / 4);
+    int templeY = pseudoRandom.Next(height / 4, height * 3 / 4);
+		templeLocation = new Vector2Int(templeX, templeY);
+    
+    // BFS queue
+    Queue<Vector2Int> queue = new Queue<Vector2Int>();
+    HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
+    
+    queue.Enqueue(templeLocation);
+    visited.Add(templeLocation);
+    
+    // Start with 100% probability
+    float currentProbability = 1f;
+    int currentLayer = 0;
+    int nodesInCurrentLayer = 1;
+    int nodesInNextLayer = 0;
+    
+    while (queue.Count > 0)
+    {
+        Vector2Int cell = queue.Dequeue();
+        
+        // Set this cell to 1 (land) based on probability
+        if (currentLayer <= guaranteedLayers || pseudoRandom.NextDouble() < currentProbability)
+        {
+            map[cell.x, cell.y] = 1;
+        }
+        
+        // Explore neighbors
+        Vector2Int[] directions = {
+            new Vector2Int(0, 1),    // up
+            new Vector2Int(1, 0),    // right
+            new Vector2Int(0, -1),   // down
+            new Vector2Int(-1, 0)    // left
+        };
+        
+        foreach (Vector2Int dir in directions)
+        {
+            Vector2Int neighbor = new Vector2Int(cell.x + dir.x, cell.y + dir.y);
+            
+            // Check bounds and if already visited
+            if (neighbor.x > 0 && neighbor.x < width - 1 && 
+                neighbor.y > 0 && neighbor.y < height - 1 && 
+                !visited.Contains(neighbor))
+            {
+                queue.Enqueue(neighbor);
+                visited.Add(neighbor);
+                nodesInNextLayer++;
+            }
+        }
+        
+        nodesInCurrentLayer--;
+        if (nodesInCurrentLayer == 0)
+        {
+            nodesInCurrentLayer = nodesInNextLayer;
+            nodesInNextLayer = 0;
+            currentLayer++;
+            
+            // Reduce probability after guaranteed layers
+            if (currentLayer > guaranteedLayers)
+            {
+                currentProbability *= probabilityDecayRate;
+            }
+        }
+    }
+    
 }
-
+}
