@@ -1,5 +1,6 @@
 using NPBehave;
 using UnityEngine;
+using System;
 using System.Collections.Generic;
 
 /*
@@ -28,7 +29,7 @@ public class MapGenerator : MonoBehaviour
 	private GameObject[] treePrefabs; // Array to store the tree prefabs
 	private List<GameObject> placedTrees = new List<GameObject>(); // List to store all instantiated trees
 	private Vector2Int templeLocation; // Store the location of the temple
-
+	private List<Vector2Int> spiralLocation =  new List<Vector2Int>(); // Store the location of the spiral
 	/*
 	 * Generate the map on start, on mouse click
 	 */
@@ -60,9 +61,9 @@ public class MapGenerator : MonoBehaviour
 		PopulateMap();
 
 		// Stage 2: apply cellular automata rules
-		for (int i = 0; i < 3; i++)
+		for (int i = 0; i < 5; i++)
 		{
-			SmoothMap();
+			// SmoothMap();
 		}
 
 		// Stage 3: finalise the map
@@ -81,7 +82,16 @@ public class MapGenerator : MonoBehaviour
 	 */
 	void PopulateMap()
     {
-		RandomFillMap();
+		if (useRandomSeed)
+		{
+			seed = Time.time.ToString();
+		}
+
+		System.Random pseudoRandom = new System.Random(seed.GetHashCode());
+		BuildTempleRegion(10, 0.2f);
+		GenerateSpiralWalls(templeLocation, pseudoRandom, new Vector2Int(4, 6));
+		// GenerateRandomSpirals(pseudoRandom);
+		// RandomFillMap();
     }
 	
 	void RandomFillMap()
@@ -107,7 +117,7 @@ public class MapGenerator : MonoBehaviour
 				}
 			}
 		}
-		 BuildTempleRegion(20, 0.7f);
+		
 	}
 
 	/*
@@ -208,6 +218,7 @@ void PlaceTrees()
 	 */
 	void ProcessMap()
 	{
+		// Repaint();
 		PlaceTrees();
 	}
 
@@ -425,4 +436,157 @@ void BuildTempleRegion(int guaranteedLayers, float probabilityDecayRate)
     }
     
 }
+
+void GenerateRandomSpirals(System.Random pseudoRandom){
+	// go trough spiralLocation and generate a random spiral
+	for (int i = 0; i < spiralLocation.Count; i++)
+	{
+		Vector2Int center =new Vector2Int(spiralLocation[i][0], spiralLocation[i][1]);
+		int maxSpirals = pseudoRandom.Next(1, 1);  // Number of spirals to generate
+		int maxLength = pseudoRandom.Next(50, 100); // Random length for each spiral
+		int currentAngle = spiralLocation[i][2];
+		// Random select an angle between currentAngle - PI/2 and currentAngle + PI/2
+		float angleRange = Mathf.PI / 2;
+		float minAngle = currentAngle - angleRange;
+		float maxAngle = currentAngle + angleRange;
+		float startAngle = (float)pseudoRandom.NextDouble() * (maxAngle - minAngle) + minAngle;
+		
+		float growthFactor = 0.3f; // Growth factor for the spiral
+		float startDistance = 0.01f; // Starting distance from the center
+		int direction = pseudoRandom.Next(0, 2) == 0 ? 1 : -1;
+		int futureSpiralPlacement = pseudoRandom.Next(0, maxLength); //Random placement for a potential new spiral
+		GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom, direction, futureSpiralPlacement);
+	}
+	// clear the spiralLocation list
+	spiralLocation.Clear();
+}
+void GenerateSpiralWalls(Vector2Int center, System.Random pseudoRandom, Vector2Int maxSpiralsInterval)
+{
+    // Parameters for spiral generation
+    // int maxSpirals = 6;  // Number of spirals to generate
+		int maxSpirals = pseudoRandom.Next(maxSpiralsInterval[0], maxSpiralsInterval[1]);  // Number of spirals to generate
+
+    // int maxLength = Mathf.Min(width, height) / 2;  // Maximum length of each spiral
+    int maxLength = 100;  // Maximum length of each spiral
+		int direction = pseudoRandom.Next(0, 2) == 0 ? 1 : -1;
+		float increaseAngle = 2*Mathf.PI/maxSpirals; // Starting angle for the spiral
+		float startAngle = 0; // Starting angle for the spiral
+		float growthFactor = 0.3f; // Growth factor for the spiral
+		float startDistance = 0.01f; // Starting distance from the center
+		// GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom);
+    
+    for (int i = 0; i < maxSpirals; i++)
+    {
+        // Random angle to start the spiral
+        // startAngle = (float)pseudoRandom.NextDouble() * 2 * Mathf.PI;
+				startAngle = i * increaseAngle; // Incremental angle for each spiral
+        maxLength = pseudoRandom.Next(100, 150); // Random length for each spiral
+				int futureSpiralPlacement = pseudoRandom.Next((int)Math.Floor((double)maxLength/3), (int)Math.Floor((double)maxLength/3)); //Random placement for a potential new spiral 
+        // Generate the spiral
+        GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom, direction, futureSpiralPlacement);
+    }
+}
+
+void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor, float startDistance, int maxLength, System.Random pseudoRandom, int direction, int futureSpiralPlacement)
+{
+		Debug.Log("Generating Euler Spiral at: " + center.x + ", " + center.y);
+    Vector2 currentPos = new Vector2(center.x, center.y);
+    float angle = startAngle;
+    float distance = startDistance;
+    // Create wall segments
+    for (int i = 0; i < maxLength; i++)
+    {
+        // Calculate next position using Euler spiral formula
+        // In an Euler spiral, the curvature increases linearly with distance
+        angle += direction* growthFactor * distance / 10f;
+        
+        // Calculate next position
+        Vector2 nextPos = currentPos + new Vector2(
+            Mathf.Cos(angle) * 1f,  // Step size of 1 unit per iteration
+            Mathf.Sin(angle) * 1f
+        );
+        
+        // Convert to grid coordinates and bound check
+        int gridX = Mathf.RoundToInt(nextPos.x);
+        int gridY = Mathf.RoundToInt(nextPos.y);
+        
+        // Ensure we're still in bounds
+        if (gridX > 0 && gridX < width - 1 && gridY > 0 && gridY < height - 1)
+        {
+            // Place a wall
+            map[gridX, gridY] = 1;
+
+						// check if the current position is the futureSpiralPlacement
+						if (i == futureSpiralPlacement)
+						{
+							spiralLocation.Add(new Vector2Int(gridX, gridY, startAngle));
+						}
+            
+            // // Occasionally widen the walls to create chambers
+            // if (pseudoRandom.NextDouble() < 0.2f)
+            // {
+            //     // Choose a random direction to expand
+            //     int expandDirX = pseudoRandom.Next(-1, 2);
+            //     int expandDirY = pseudoRandom.Next(-1, 2);
+                
+            //     int expandX = gridX + expandDirX;
+            //     int expandY = gridY + expandDirY;
+                
+            //     // Ensure expanded wall is in bounds
+            //     if (expandX > 0 && expandX < width - 1 && expandY > 0 && expandY < height - 1)
+            //     {
+            //         map[expandX, expandY] = 1;
+            //     }
+            // }
+            
+            // // Occasionally branch off a new path
+            // if (pseudoRandom.NextDouble() < 0.05f && i > 10)
+            // {
+            //     float branchAngle = angle + (float)(pseudoRandom.NextDouble() * Mathf.PI - Mathf.PI/2);
+            //     float branchGrowth = growthFactor * 0.8f + (float)pseudoRandom.NextDouble() * 0.4f;
+            //     GenerateEulerSpiral(
+            //         new Vector2Int(gridX, gridY), 
+            //         branchAngle, 
+            //         branchGrowth, 
+            //         distance * 0.5f, 
+            //         maxLength / 3, 
+            //         pseudoRandom
+            //     );
+            // }
+            
+            // Update current position
+            currentPos = nextPos;
+            
+            // Increase distance for spiral effect
+            distance += 0.1f;
+        }
+        else
+        {
+            // If we've gone out of bounds, stop this spiral
+            break;
+        }
+    }
+}
+
+void Repaint(){
+	// this function should transform all 0s in the map to 1s and the 2s to 0s
+	for (int x = 0; x < width; x++)
+	{
+		for (int y = 0; y < height; y++)
+		{
+			if (map[x, y] == 2)
+			{
+				Debug.Log("Repainting: " + x + ", " + y);
+
+				map[x, y] = 0;
+				continue;
+			}
+			else if (map[x, y] == 0)
+			{
+				map[x, y] = 1;
+			}
+		}
+	}
+}
+ 
 }
