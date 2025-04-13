@@ -29,7 +29,7 @@ public class MapGenerator : MonoBehaviour
 	private GameObject[] treePrefabs; // Array to store the tree prefabs
 	private List<GameObject> placedTrees = new List<GameObject>(); // List to store all instantiated trees
 	private Vector2Int templeLocation; // Store the location of the temple
-	private List<Vector2Int> spiralLocation =  new List<Vector2Int>(); // Store the location of the spiral
+	private List<Vector3Int> spiralLocation =  new List<Vector3Int>(); // Store the location of the spiral
 	/*
 	 * Generate the map on start, on mouse click
 	 */
@@ -88,8 +88,11 @@ public class MapGenerator : MonoBehaviour
 		}
 
 		System.Random pseudoRandom = new System.Random(seed.GetHashCode());
-		BuildTempleRegion(10, 0.2f);
-		GenerateSpiralWalls(templeLocation, pseudoRandom, new Vector2Int(4, 6));
+        RandomFillMap();
+        for(int i = 0; i < 3; ++i){
+            BuildTempleRegion(10, 0.2f);
+            GenerateSpiralWalls(templeLocation, pseudoRandom, new Vector2Int(4, 6));
+        }
 		// GenerateRandomSpirals(pseudoRandom);
 		// RandomFillMap();
     }
@@ -107,14 +110,15 @@ public class MapGenerator : MonoBehaviour
 		{
 			for (int y = 0; y < height; y++)
 			{
-				if (x == 0 || x == width - 1 || y == 0 || y == height - 1)
-				{
-					map[x, y] = 1;
-				}
-				else
-				{
-					map[x, y] = (pseudoRandom.Next(0, 100) < randomFillPercent) ? 1 : 0;
-				}
+                map[x, y] = 1;
+				// if (x == 0 || x == width - 1 || y == 0 || y == height - 1)
+				// {
+				// 	map[x, y] = 1;
+				// }
+				// else
+				// {
+				// 	map[x, y] = (pseudoRandom.Next(0, 100) < randomFillPercent) ? 1 : 0;
+				// }
 			}
 		}
 		
@@ -219,7 +223,7 @@ void PlaceTrees()
 	void ProcessMap()
 	{
 		// Repaint();
-		PlaceTrees();
+		// PlaceTrees();
 	}
 
 	void AddMapBorder()
@@ -370,9 +374,12 @@ void BuildTempleRegion(int guaranteedLayers, float probabilityDecayRate)
     System.Random pseudoRandom = new System.Random(seed.GetHashCode());
     
     // Choose a random point not too close to the edges
-    int templeX = pseudoRandom.Next(width / 4, width * 3 / 4);
-    int templeY = pseudoRandom.Next(height / 4, height * 3 / 4);
-		templeLocation = new Vector2Int(templeX, templeY);
+    int templeX = UnityEngine.Random.Range(width / 4, width * 3 / 4);
+    int templeY = UnityEngine.Random.Range(height / 4, height * 3 / 4);
+    templeLocation = new Vector2Int(templeX, templeY);
+    
+    templeLocation = new Vector2Int(templeX, templeY);
+    Debug.Log("Temple location: " + templeLocation);
     
     // BFS queue
     Queue<Vector2Int> queue = new Queue<Vector2Int>();
@@ -394,7 +401,7 @@ void BuildTempleRegion(int guaranteedLayers, float probabilityDecayRate)
         // Set this cell to 1 (land) based on probability
         if (currentLayer <= guaranteedLayers || pseudoRandom.NextDouble() < currentProbability)
         {
-            map[cell.x, cell.y] = 1;
+            map[cell.x, cell.y] = 0;
         }
         
         // Explore neighbors
@@ -489,7 +496,6 @@ void GenerateSpiralWalls(Vector2Int center, System.Random pseudoRandom, Vector2I
 
 void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor, float startDistance, int maxLength, System.Random pseudoRandom, int direction, int futureSpiralPlacement)
 {
-		Debug.Log("Generating Euler Spiral at: " + center.x + ", " + center.y);
     Vector2 currentPos = new Vector2(center.x, center.y);
     float angle = startAngle;
     float distance = startDistance;
@@ -502,8 +508,8 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
         
         // Calculate next position
         Vector2 nextPos = currentPos + new Vector2(
-            Mathf.Cos(angle) * 1f,  // Step size of 1 unit per iteration
-            Mathf.Sin(angle) * 1f
+            Mathf.Cos(angle) * 1.0f,  // Step size of 1 unit per iteration
+            Mathf.Sin(angle) * 1.0f
         );
         
         // Convert to grid coordinates and bound check
@@ -514,12 +520,13 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
         if (gridX > 0 && gridX < width - 1 && gridY > 0 && gridY < height - 1)
         {
             // Place a wall
-            map[gridX, gridY] = 1;
+            // map[gridX, gridY] = 0;
+            DrawLine((int)currentPos.x, (int)currentPos.y, gridX, gridY);
 
 						// check if the current position is the futureSpiralPlacement
 						if (i == futureSpiralPlacement)
 						{
-							spiralLocation.Add(new Vector2Int(gridX, gridY, startAngle));
+							spiralLocation.Add(new Vector3Int(gridX, gridY, (int)startAngle));
 						}
             
             // // Occasionally widen the walls to create chambers
@@ -567,7 +574,35 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
         }
     }
 }
+void DrawLine(int x0, int y0, int x1, int y1)
+{
+    int dx = Mathf.Abs(x1 - x0);
+    int dy = Mathf.Abs(y1 - y0);
+    int sx = (x0 < x1) ? 1 : -1;
+    int sy = (y0 < y1) ? 1 : -1;
+    int err = dx - dy;
 
+    while (true)
+    {
+        // Place a wall at the current position
+        map[x0, y0] = 0;
+
+        // Check if we've reached the end point
+        if (x0 == x1 && y0 == y1) break;
+
+        int e2 = 2 * err;
+        if (e2 > -dy)
+        {
+            err -= dy;
+            x0 += sx;
+        }
+        if (e2 < dx)
+        {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
 void Repaint(){
 	// this function should transform all 0s in the map to 1s and the 2s to 0s
 	for (int x = 0; x < width; x++)
@@ -576,7 +611,6 @@ void Repaint(){
 		{
 			if (map[x, y] == 2)
 			{
-				Debug.Log("Repainting: " + x + ", " + y);
 
 				map[x, y] = 0;
 				continue;
