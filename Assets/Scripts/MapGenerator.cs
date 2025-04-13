@@ -80,7 +80,7 @@ public class MapGenerator : MonoBehaviour
 		MeshGenerator meshGen = GetComponent<MeshGenerator>();
 		meshGen.GenerateMesh(map, 1);
 		 // Place the dragon
-    PlaceObjects();
+        PlaceObjects();
 	}
 
 	/*
@@ -96,12 +96,12 @@ public class MapGenerator : MonoBehaviour
 		System.Random pseudoRandom = new System.Random(seed.GetHashCode());
         RandomFillMap();
         int maxLayer = 15;
-        BuildTempleRegion(13, 0.9f, maxLayer);
+        BuildClearingRegion(13, 0.9f, maxLayer);
         GenerateSpiralWalls(templeLocation, pseudoRandom, new Vector2Int(4, 6), new Vector2Int(100, 150), 0.2f);
 
         for (int i = 0; i < 4; ++i)
         {
-            BuildTempleRegion(8, 0.9f, maxLayer);
+            BuildClearingRegion(8, 0.9f, maxLayer);
             GenerateSpiralWalls(templeLocation, pseudoRandom, new Vector2Int(4, 6), new Vector2Int(50, 60), 0.7f);
         }
     }
@@ -236,6 +236,7 @@ void PlaceTrees()
 	void ProcessMap()
 	{
 		Repaint();
+        ConnectIslands(5); 
 		PlaceTrees();
 	}
 
@@ -307,12 +308,12 @@ void AddDragonBehavior(GameObject dragon, Vector2Int startPosition)
     dragonBehaviorTree = new NPBehave.Root(new NPBehave.Repeater(sequence));
     dragonBehaviorTree.Start();
 }
-void BuildTempleRegion(int guaranteedLayers, float probabilityDecayRate, int maxLayer)
+void BuildClearingRegion(int guaranteedLayers, float probabilityDecayRate, int maxLayer)
 {
     System.Random pseudoRandom = new System.Random(seed.GetHashCode());
     Vector2Int newTempleLocation;
 
-    // Divide the map into a 10x10 grid
+    // Divide the map into a 5x5 grid
     int cellWidth = width / 5;
     int cellHeight = height / 5;
 
@@ -323,7 +324,7 @@ void BuildTempleRegion(int guaranteedLayers, float probabilityDecayRate, int max
 
     do
     {
-        // Choose a random cell in the 10x10 grid
+        // Choose a random cell in the 5x5 grid
         int gridX = pseudoRandom.Next(0, 5);
         int gridY = pseudoRandom.Next(0, 5);
 
@@ -565,7 +566,14 @@ void ClearMapData()
     spiralLocation.Clear();
 
     // Clear placed trees
-    ClearTrees();
+    foreach (GameObject tree in placedTrees)
+    {
+        if (tree != null)
+        {
+            Destroy(tree);
+        }
+    }
+    placedTrees.Clear();
 
     // Clear dragons
     foreach (GameObject dragon in dragons)
@@ -576,6 +584,13 @@ void ClearMapData()
         }
     }
     dragons.Clear();
+
+    // Destroy the temple
+    if (currentTemple != null)
+    {
+        Destroy(currentTemple);
+        currentTemple = null;
+    }
 
     // Stop the dragon behavior tree if it exists
     if (dragonBehaviorTree != null)
@@ -605,30 +620,6 @@ private GameObject currentTemple; // Store a reference to the current temple
 
 void PlaceObjects()
 {
-    // Stop the previous behavior tree if it exists
-    if (dragonBehaviorTree != null)
-    {
-        dragonBehaviorTree.Stop();
-        dragonBehaviorTree = null;
-    }
-
-    // Destroy all previous dragons
-    foreach (GameObject dragon in dragons)
-    {
-        if (dragon != null)
-        {
-            Destroy(dragon);
-        }
-    }
-    dragons.Clear();
-
-    // Destroy the previous temple
-    if (currentTemple != null)
-    {
-        Destroy(currentTemple);
-        currentTemple = null;
-    }
-
     // Load the temple prefab
     GameObject templePrefab = Resources.Load<GameObject>("Temple");
     if (templePrefab == null)
@@ -686,5 +677,93 @@ void PlaceObjects()
         }
     }
 }
- 
+
+void ConnectIslands(int stepsBeforeSpiral)
+{
+    if (clearingLocations.Count < 2)
+    {
+        Debug.LogWarning("Not enough islands to connect.");
+        return;
+    }
+
+    System.Random pseudoRandom = new System.Random(seed.GetHashCode());
+
+    // Iterate through all pairs of clearing locations
+    for (int i = 0; i < clearingLocations.Count - 1; i++)
+    {
+        Vector2Int start = clearingLocations[i];
+        Vector2Int end = clearingLocations[i + 1];
+
+        // Draw a line to connect the two islands
+        ConnectWithLine(start, end);
+    }
+}
+
+void ConnectWithLine(Vector2Int start, Vector2Int end)
+{
+    int x0 = start.x;
+    int y0 = start.y;
+    int x1 = end.x;
+    int y1 = end.y;
+
+    int dx = Mathf.Abs(x1 - x0);
+    int dy = Mathf.Abs(y1 - y0);
+    int sx = (x0 < x1) ? 1 : -1;
+    int sy = (y0 < y1) ? 1 : -1;
+    int err = dx - dy;
+
+    int stepCounter = 0;
+
+    while (true)
+    {
+        map[x0, y0] = 0; // Mark the path with 2
+        // Check if we've reached the end point
+        if (x0 == x1 && y0 == y1) break;
+
+        int e2 = 2 * err;
+        if (e2 > -dy)
+        {
+            err -= dy;
+            x0 += sx;
+        }
+        if (e2 < dx)
+        {
+            err += dx;
+            y0 += sy;
+        }
+
+        stepCounter++;
+    }
+}
+
+void GenerateSpiralFromPoint(Vector2Int center, System.Random pseudoRandom)
+{
+    // Parameters for the spiral
+    float startAngle = (float)pseudoRandom.NextDouble() * 2 * Mathf.PI; // Random starting angle
+    float growthFactor = 0.3f; // Growth factor for the spiral
+    float startDistance = 0.01f; // Starting distance from the center
+    int maxLength = pseudoRandom.Next(30, 50); // Random length for the spiral
+    int direction = pseudoRandom.Next(0, 2) == 0 ? 1 : -1; // Random direction (clockwise or counterclockwise)
+
+    // Generate the spiral
+    GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom, direction, -1);
+}
+
+void SetThickLine(int x, int y, int thickness)
+{
+    for (int offsetX = -thickness; offsetX <= thickness; offsetX++)
+    {
+        for (int offsetY = -thickness; offsetY <= thickness; offsetY++)
+        {
+            int newX = x + offsetX;
+            int newY = y + offsetY;
+
+            // Ensure the new position is within bounds
+            if (IsInMapRange(newX, newY))
+            {
+                map[newX, newY] = 0; // Set the cell to empty
+            }
+        }
+    }
+}
 }
