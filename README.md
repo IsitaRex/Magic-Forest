@@ -26,8 +26,10 @@ The level will feature a Temple clearing, the heart of the forest, and several D
 
 A **clearing** is generated using **Breadth-First Search (BFS)** to create a space for the **Temple of Eternal Whispers**. To prevent collisions between the clearings, the map was divided into a 5x5 grid. This ensures that when a clearing is placed, no other clearings are located in the 8 neighboring cells or in the same cell. This approach maintains proper spacing between clearings, creating a balanced and visually appealing layout. You can see an illustration of this concept in the figure below:
 
-![Collision Avoidance in a 5x5 Grid](./docs/Collisions.png)
-<img src="./docs/Collisions.png" alt="Collision Avoidance in a 5x5 Grid" width="500">
+
+<div align="center">
+  <img src="./docs/Collisions.png" alt="Collision Avoidance in a 5x5 Grid" width="600">
+</div>
 - **BFS Algorithm**:
   - Start from a randomly chosen point (`clearingLocation`) within the central region of the map (to avoid edges).
   - Use a queue to explore neighboring cells in all four cardinal directions (up, down, left, right).
