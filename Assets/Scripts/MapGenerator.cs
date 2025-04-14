@@ -650,124 +650,70 @@ public class MapGenerator : MonoBehaviour
         foreach ((Vector2Int start, Vector2Int end) in mstEdges)
         {
             // Parameters for path generation
-            int numSamplePoints = 13; // Number of points to sample along the shortest path
             float curviness = 0.9f; // How much the path should curve (0-1)
             int pathThickness = 1; // Thickness of the path
 
             // Generate an S-shaped path between the two clearings
-            CreateSShapedPath(start, end, numSamplePoints, curviness, pathThickness);
+            CreateSShapedPath(start, end, curviness, pathThickness);
         }
     }
 
     // Create an S-shaped path between two points
-    void CreateSShapedPath(Vector2Int start, Vector2Int end, int numSamplePoints, float curviness, int pathThickness)
+    void CreateSShapedPath(Vector2Int start, Vector2Int end, float curviness, int pathThickness)
     {
-        // Find the shortest path using A*
-        List<Vector2Int> shortestPath = FindShortestPath(start, end);
-        
+        // Find the shortest path using BFS
+        bool isConnected = FindShortestPath(start, end);
+        if (isConnected == true) return; // If there is already a path we don't need to create a new one
+
         // If no path was found, create a fallback path
-        if (shortestPath.Count == 0) shortestPath = CreateFallbackPath(start, end);
-        
-        // Sample points from the path
-        List<Vector2Int> sampledPoints = SamplePathPoints(shortestPath, numSamplePoints);
-        
+        List<Vector2Int> shortestPath = CreateFallbackPath(start, end);
+
         // Generate an S-shaped curve using cubic interpolation
-        List<Vector2Int> sShapedPath = InterpolateCubicPath(sampledPoints, curviness);
+        List<Vector2Int> sShapedPath = InterpolateCubicPath(shortestPath, curviness);
         
         // Draw the path with the specified thickness
         DrawPathWithThickness(sShapedPath, pathThickness);
     }
 
-    // Find the shortest path between two points using A* algorithm
-    List<Vector2Int> FindShortestPath(Vector2Int start, Vector2Int end)
+    // Find the shortest path using BFS
+    bool FindShortestPath(Vector2Int start, Vector2Int end)
     {
-        // A* algorithm implementation
-        Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
-        Dictionary<Vector2Int, float> gScore = new Dictionary<Vector2Int, float>();
-        Dictionary<Vector2Int, float> fScore = new Dictionary<Vector2Int, float>();
-        
-        // Priority queue implemented with a sorted list
-        List<KeyValuePair<float, Vector2Int>> openSet = new List<KeyValuePair<float, Vector2Int>>();
-        HashSet<Vector2Int> closedSet = new HashSet<Vector2Int>();
-        
-        // Initialize scores
-        gScore[start] = 0;
-        fScore[start] = ManhattanDistance(start, end);
-        openSet.Add(new KeyValuePair<float, Vector2Int>(fScore[start], start));
-        
-        while (openSet.Count > 0)
+        // Queue for BFS
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+        HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
+
+        // Initialize BFS
+        queue.Enqueue(start);
+        visited.Add(start);
+
+        while (queue.Count > 0)
         {
-            // Get the node with the lowest fScore
-            Vector2Int current = openSet[0].Value;
-            openSet.RemoveAt(0);
-            
-            if (current.Equals(end))
-            {
-                // Reconstruct path
-                return ReconstructPath(cameFrom, current);
-            }
-            
-            closedSet.Add(current);
-            
-            // Check all neighbors
+            Vector2Int current = queue.Dequeue();
+
+            // Check if we reached the end
+            if (current == end) return true; 
+
+            // Explore neighbors
             Vector2Int[] directions = {
                 new Vector2Int(0, 1),    // up
                 new Vector2Int(1, 0),    // right
                 new Vector2Int(0, -1),   // down
-                new Vector2Int(-1, 0),   // left
-                new Vector2Int(1, 1),    // diagonal up-right
-                new Vector2Int(1, -1),   // diagonal down-right
-                new Vector2Int(-1, -1),  // diagonal down-left
-                new Vector2Int(-1, 1)    // diagonal up-left
+                new Vector2Int(-1, 0)    // left
             };
-            
+
             foreach (Vector2Int dir in directions)
             {
-                Vector2Int neighbor = new Vector2Int(current.x + dir.x, current.y + dir.y);
-                
-                // Check if the neighbor is valid
-                if (!IsInMapRange(neighbor.x, neighbor.y) || closedSet.Contains(neighbor))
-                    continue;
-                
-                // Check if the neighbor is a wall (value = 1)
-                if (map[neighbor.x, neighbor.y] == 1) continue;
-                
-                // Calculate tentative gScore
-                float tentativeGScore = gScore[current] + 
-                    (dir.x != 0 && dir.y != 0 ? 1.414f : 1f); // Diagonal cost is sqrt(2)
-                
-                if (!gScore.ContainsKey(neighbor) || tentativeGScore < gScore[neighbor])
+                Vector2Int neighbor = current + dir;
+                if (IsInMapRange(neighbor.x, neighbor.y) && !visited.Contains(neighbor) && map[neighbor.x, neighbor.y] == 0)
                 {
-                    // This path is better than any previous one
-                    cameFrom[neighbor] = current;
-                    gScore[neighbor] = tentativeGScore;
-                    fScore[neighbor] = gScore[neighbor] + ManhattanDistance(neighbor, end);
-                    
-                    // Add to open set if not already there
-                    bool found = false;
-                    for (int i = 0; i < openSet.Count; i++)
-                    {
-                        if (openSet[i].Value.Equals(neighbor))
-                        {
-                            found = true;
-                            openSet[i] = new KeyValuePair<float, Vector2Int>(fScore[neighbor], neighbor);
-                            break;
-                        }
-                    }
-                    
-                    if (!found)
-                    {
-                        openSet.Add(new KeyValuePair<float, Vector2Int>(fScore[neighbor], neighbor));
-                    }
-                    
-                    // Keep the open set sorted by fScore
-                    openSet.Sort((a, b) => a.Key.CompareTo(b.Key));
+                    queue.Enqueue(neighbor);
+                    visited.Add(neighbor);
                 }
             }
         }
-        
+
         // No path found
-        return new List<Vector2Int>();
+        return false;
     }
 
     // Create a fallback path when A* fails to find a route
@@ -800,103 +746,13 @@ public class MapGenerator : MonoBehaviour
         // Add end point
         fallbackPath.Add(end);
         
-        // Now add points along the lines between start, mid and end
-        List<Vector2Int> detailedPath = new List<Vector2Int>();
-        
-        // Add points between start and mid
-        AddPointsAlongLine(detailedPath, start, midPoint);
-        
-        // Add points between mid and end
-        AddPointsAlongLine(detailedPath, midPoint, end);
-        
-        return detailedPath;
-    }
-
-    // Add points along a line using Bresenham's line algorithm
-    void AddPointsAlongLine(List<Vector2Int> path, Vector2Int start, Vector2Int end)
-    {
-        int x0 = start.x;
-        int y0 = start.y;
-        int x1 = end.x;
-        int y1 = end.y;
-        
-        int dx = Mathf.Abs(x1 - x0);
-        int dy = Mathf.Abs(y1 - y0);
-        int sx = x0 < x1 ? 1 : -1;
-        int sy = y0 < y1 ? 1 : -1;
-        int err = dx - dy;
-        
-        while (true)
-        {
-            path.Add(new Vector2Int(x0, y0));
-            
-            if (x0 == x1 && y0 == y1)
-                break;
-            
-            int e2 = 2 * err;
-            if (e2 > -dy)
-            {
-                err -= dy;
-                x0 += sx;
-            }
-            if (e2 < dx)
-            {
-                err += dx;
-                y0 += sy;
-            }
-        }
+        return fallbackPath;
     }
 
     // Calculate Manhattan distance between two points
     float ManhattanDistance(Vector2Int a, Vector2Int b)
     {
         return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
-    }
-
-    // Reconstruct the path from start to end
-    List<Vector2Int> ReconstructPath(Dictionary<Vector2Int, Vector2Int> cameFrom, Vector2Int current)
-    {
-        List<Vector2Int> path = new List<Vector2Int>();
-        path.Add(current);
-        
-        while (cameFrom.ContainsKey(current))
-        {
-            current = cameFrom[current];
-            path.Insert(0, current);
-        }
-        
-        return path;
-    }
-
-    // Sample points from the path
-    List<Vector2Int> SamplePathPoints(List<Vector2Int> path, int numSamplePoints)
-    {
-        List<Vector2Int> sampledPoints = new List<Vector2Int>();
-        
-        // Always include start and end points
-        sampledPoints.Add(path[0]);
-        
-        if (path.Count <= 2)
-        {
-            // If path is too short, just return start and end
-            sampledPoints.Add(path[path.Count - 1]);
-            return sampledPoints;
-        }
-        
-        // Calculate sample intervals
-        float step = (float)(path.Count - 1) / (numSamplePoints - 1);
-        
-        // Add intermediate points
-        for (int i = 1; i < numSamplePoints - 1; i++)
-        {
-            int index = Mathf.FloorToInt(i * step);
-            sampledPoints.Add(path[index]);
-        }
-        
-        // Add end point
-        sampledPoints.Add(path[path.Count - 1]);
-        
-        return sampledPoints;
     }
 
     // Create an S-shaped path using cubic interpolation
