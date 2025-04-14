@@ -35,6 +35,7 @@ public class MapGenerator : MonoBehaviour
 	private List<Vector3Int> spiralLocation =  new List<Vector3Int>(); // Store the location of the spiral
     private GameObject currentTemple; // Store a reference to the current temple
     private bool[,] gridCellOccupied; // Tracks which cells in the 5x5 grid are occupied
+    private GameObject trex; // Reference to the T-Rex instance
 	/*
 	 * Generate the map on start, on mouse click
 	 */
@@ -475,8 +476,8 @@ void GenerateSpiralWalls(Vector2Int center, System.Random pseudoRandom, Vector2I
     {
         // Random angle to start the spiral
         // startAngle = (float)pseudoRandom.NextDouble() * 2 * Mathf.PI;
-        int startAngle = i * increaseAngle; // Incremental angle for each spiral
-        maxLength = pseudoRandom.Next(maxSpiralsLengthInterval[0], maxSpiralsLengthInterval[1]); // Random length for each spiral
+        float startAngle = i * increaseAngle; // Incremental angle for each spiral
+        int maxLength = pseudoRandom.Next(maxSpiralsLengthInterval[0], maxSpiralsLengthInterval[1]); // Random length for each spiral
         int futureSpiralPlacement = pseudoRandom.Next((int)Math.Floor((double)maxLength/3), (int)Math.Floor((double)maxLength/3)); //Random placement for a potential new spiral 
         // Generate the spiral
         GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom, direction, futureSpiralPlacement);
@@ -564,113 +565,132 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
         }
     }
 
-    // Function to clear all map data
     void ClearMapData()
+{
+    // Clear clearing locations
+    clearingLocations.Clear();
+
+    // Clear spiral locations
+    spiralLocation.Clear();
+
+    // Clear placed trees
+    foreach (GameObject tree in placedTrees)
     {
-        // Clear clearing locations
-        clearingLocations.Clear();
-
-        // Clear spiral locations
-        spiralLocation.Clear();
-
-        // Clear placed trees
-        foreach (GameObject tree in placedTrees)
+        if (tree != null)
         {
-            if (tree != null)
-            {
-                Destroy(tree);
-            }
+            Destroy(tree);
         }
-        placedTrees.Clear();
-
-        // Clear dragons
-        foreach (GameObject dragon in dragons)
-        {
-            if (dragon != null)
-            {
-                Destroy(dragon);
-            }
-        }
-        dragons.Clear();
-
-        // Destroy the temple
-        if (currentTemple != null)
-        {
-            Destroy(currentTemple);
-            currentTemple = null;
-        }
-
-        // Stop the dragon behavior tree if it exists
-        if (dragonBehaviorTree != null)
-        {
-            dragonBehaviorTree.Stop();
-            dragonBehaviorTree = null;
-        }
-
-        Debug.Log("Map data cleared.");
     }
+    placedTrees.Clear();
+
+    // Clear dragons
+    foreach (GameObject dragon in dragons)
+    {
+        if (dragon != null)
+        {
+            Destroy(dragon);
+        }
+    }
+    dragons.Clear();
+
+    // Destroy the temple
+    if (currentTemple != null)
+    {
+        Destroy(currentTemple);
+        currentTemple = null;
+    }
+
+    // Destroy the T-Rex
+    if (trex != null)
+    {
+        Destroy(trex);
+        trex = null;
+    }
+
+    // Stop the dragon behavior tree if it exists
+    if (dragonBehaviorTree != null)
+    {
+        dragonBehaviorTree.Stop();
+        dragonBehaviorTree = null;
+    }
+
+    Debug.Log("Map data cleared.");
+}
 
 
     void PlaceObjects()
+{
+    // Load the temple prefab
+    GameObject templePrefab = Resources.Load<GameObject>("Temple");
+    if (templePrefab == null)
     {
-        // Load the temple prefab
-        GameObject templePrefab = Resources.Load<GameObject>("Temple");
-        if (templePrefab == null)
+        Debug.LogError("Temple prefab not found in Resources folder!");
+        return;
+    }
+
+    // Place the temple at the first clearing location
+    if (clearingLocations.Count > 0)
+    {
+        currentTemple = PlacePrefab(templePrefab, clearingLocations[0], "Temple");
+        Debug.Log($"Temple placed at: {clearingLocations[0]}");
+    }
+
+    // Load and place dragon prefabs
+    for (int i = 1; i <= 4; i++)
+    {
+        GameObject dragonPrefab = Resources.Load<GameObject>($"Dragon{i}");
+        if (dragonPrefab == null)
         {
-            Debug.LogError("Temple prefab not found in Resources folder!");
-            return;
+            Debug.LogError($"Dragon{i} prefab not found in Resources folder!");
+            continue;
         }
 
-        // Place the temple at the first clearing location
-        if (clearingLocations.Count > 0)
+        if (i < clearingLocations.Count)
         {
-            Vector2Int templeLocation = clearingLocations[0];
-            Vector3 templePosition = new Vector3(
-                -width / 2 + templeLocation.x + 0.5f,
-                0, // Adjust Y-axis if needed
-                -height / 2 + templeLocation.y + 0.5f
-            );
-
-            // Instantiate the temple and store the reference
-            currentTemple = Instantiate(templePrefab, templePosition, Quaternion.Euler(90, 0, 0));
-            currentTemple.name = "Temple"; // Ensure the temple has a consistent name for debugging
-        }
-
-        // Load the dragon prefabs
-        for (int i = 1; i <= 4; i++)
-        {
-            GameObject dragonPrefab = Resources.Load<GameObject>($"Dragon{i}");
-            if (dragonPrefab == null)
-            {
-                Debug.LogError($"Dragon{i} prefab not found in Resources folder!");
-                continue;
-            }
-
-            // Place dragons at the other clearing locations
-            if (i < clearingLocations.Count)
-            {
-                Vector2Int dragonLocation = clearingLocations[i];
-                Vector3 dragonPosition = new Vector3(
-                    -width / 2 + dragonLocation.x + 0.5f,
-                    0, // Adjust Y-axis if needed
-                    -height / 2 + dragonLocation.y + 0.5f
-                );
-
-                // Instantiate the dragon
-                GameObject dragon = Instantiate(dragonPrefab, dragonPosition, Quaternion.Euler(90, 0, 0));
-
-                // Apply the scale
-                dragon.transform.localScale = dragonScale;
-
-                // Add the dragon to the list
-                dragons.Add(dragon);
-
-                // Add the behavior tree for movement
-                AddDragonBehavior(dragon, dragonLocation);
-            }
+            GameObject dragon = PlacePrefab(dragonPrefab, clearingLocations[i], $"Dragon{i}");
+            // Apply the scale
+            dragon.transform.localScale = dragonScale;
+            dragons.Add(dragon);
+            AddDragonBehavior(dragon, clearingLocations[i]);
+            Debug.Log($"Dragon{i} placed at: {clearingLocations[i]}");
         }
     }
 
+    // Load and place the T-Rex prefab on the last clearing
+    GameObject trexPrefab = Resources.Load<GameObject>("Trex");
+    if (trexPrefab == null)
+    {
+        Debug.LogError("T-Rex prefab not found in Resources folder!");
+        return;
+    }
+
+    if (clearingLocations.Count > 1)
+    {
+        trex = PlacePrefab(trexPrefab, clearingLocations[^1], "Trex");
+        Debug.Log($"T-Rex placed at: {clearingLocations[^1]}");
+    }
+}
+
+// Helper function to place a prefab at a specific clearing
+GameObject PlacePrefab(GameObject prefab, Vector2Int clearingLocation, string name)
+{
+    Vector3 position = new Vector3(
+        -width / 2 + clearingLocation.x + 0.5f,
+        0, // Adjust Y-axis if needed
+        -height / 2 + clearingLocation.y + 0.5f
+    );
+
+    GameObject instance = Instantiate(prefab, position, Quaternion.Euler(90, 0, 0));
+    instance.name = name;
+
+    // Set the currentTemple reference if placing the temple
+    if (name == "Temple")
+    {
+        currentTemple = instance;
+    }
+
+    return instance;
+}
 // Function to connect all consecutive clearings with paths
 void ConnectClearings()
 {
