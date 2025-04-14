@@ -112,7 +112,6 @@ public class MapGenerator : MonoBehaviour
 		{
 			for (int y = 0; y < height; y++)
 			{
-                // if(map[x, y] == 2) continue; // Skip if a spiral
 				int neighbourWallTiles = GetSurroundingWallCount(x, y);
 
 				if (neighbourWallTiles > 4)
@@ -148,17 +147,15 @@ public class MapGenerator : MonoBehaviour
 		
 	}
 	
+    // Generate spiral paths around the clearings
     void PopulateMapSpirals(){
-        if (useRandomSeed)
-		{
-			seed = Time.time.ToString();
-		}
+        // Generate bigger spiral walls around the temple
+        GenerateSpiralWalls(clearingLocations[0], new Vector2Int(4, 6), new Vector2Int(100, 150), 0.2f);
 
-		System.Random pseudoRandom = new System.Random(seed.GetHashCode());
-        GenerateSpiralWalls(clearingLocations[0], pseudoRandom, new Vector2Int(4, 6), new Vector2Int(100, 150), 0.2f);
+        // Generate smaller spiral walls around the dragons and player
         for(int i = 1; i < clearingLocations.Count; ++i)
         {
-            GenerateSpiralWalls(clearingLocations[i], pseudoRandom, new Vector2Int(4, 6), new Vector2Int(50, 60), 0.7f);
+            GenerateSpiralWalls(clearingLocations[i], new Vector2Int(4, 6), new Vector2Int(50, 60), 0.7f);
         }
     }
 
@@ -203,6 +200,8 @@ public class MapGenerator : MonoBehaviour
         }
         placedTrees.Clear(); // Clear the list after destroying the trees
     }
+
+    // Place trees on the map
     void PlaceTrees()
     {
             // ClearTrees();
@@ -211,7 +210,7 @@ public class MapGenerator : MonoBehaviour
             for (int y = 0; y < height; y++)
             {
                 // Only place trees on non-empty spots
-                if (map[x, y] != 0 && UnityEngine.Random.Range(0, 100) < 100) // 20% chance to place a tree
+                if (map[x, y] != 0) 
                 {
                     // Select a random tree prefab
                     GameObject treePrefab = treePrefabs[UnityEngine.Random.Range(0, treePrefabs.Length)];
@@ -226,8 +225,9 @@ public class MapGenerator : MonoBehaviour
                     // Instantiate the tree
                     GameObject tree = Instantiate(treePrefab, position, Quaternion.identity);
 
-                    // Scale down the tree
-                    tree.transform.localScale = new Vector3(0.15f, 0.15f, 0.15f); // Adjust scale as needed
+                    // Scale the trees randomly to add variety
+                    float randomScale = UnityEngine.Random.Range(0.05f, 0.2f);
+                    tree.transform.localScale = new Vector3( randomScale, randomScale, randomScale);
 
                     // Add the tree to the list
                     placedTrees.Add(tree);
@@ -236,7 +236,6 @@ public class MapGenerator : MonoBehaviour
         }
     }
 
-	
 
 	void AddMapBorder()
 	{
@@ -306,16 +305,34 @@ public class MapGenerator : MonoBehaviour
         dragonBehaviorTree = new NPBehave.Root(new NPBehave.Repeater(sequence));
         dragonBehaviorTree.Start();
     }
+    
+    // Build a clearing region
     void BuildClearingRegion(int guaranteedLayers, float probabilityDecayRate, int maxLayer)
     {
+        // Step 1: Find a valid clearing location
+        Vector2Int clearingLocation = FindClearingLocation();
+        // Step 2: Perform BFS to create the clearing
+        PerformBFSForClearing(clearingLocation, guaranteedLayers, probabilityDecayRate, maxLayer);
+    }
+
+    // Find a valid clearing location in the map
+    Vector2Int FindClearingLocation()
+    {   
+        /*
+            * Find a valid clearing location in the map
+            * The location is chosen randomly from the 5x5 grid cells
+            * A location is valid if:
+            * 1. It is not already occupied by another clearing
+            * 2. It is not too close to other clearings (adjacent or diagonal)
+            * Trying to find a valid location for 100 attempts. If no valid location is found, pick a random available cell
+        */
+
         System.Random pseudoRandom = new System.Random(seed.GetHashCode());
-        Vector2Int newClearingLocation;
 
         // Divide the map into a 5x5 grid
         int cellWidth = width / 5;
         int cellHeight = height / 5;
 
-        // Try to find a valid location for the clearing
         int maxAttempts = 100; // Limit the number of attempts to avoid infinite loops
         int attempts = 0;
         bool validLocation = false;
@@ -352,7 +369,6 @@ public class MapGenerator : MonoBehaviour
         // If no valid location is found, pick a random available cell
         if (!validLocation)
         {
-            Debug.LogWarning("Could not find a valid location after " + maxAttempts + " attempts. Picking a random available cell.");
             List<Vector2Int> availableCells = new List<Vector2Int>();
             for (int x = 0; x < 5; x++)
             {
@@ -371,11 +387,6 @@ public class MapGenerator : MonoBehaviour
                 gridX = randomCell.x;
                 gridY = randomCell.y;
             }
-            else
-            {
-                Debug.LogError("No available cells in the 5x5 grid.");
-                return;
-            }
         }
 
         // Mark the chosen cell as occupied
@@ -384,17 +395,29 @@ public class MapGenerator : MonoBehaviour
         // Calculate the center of the chosen cell
         int clearingX = gridX * cellWidth + cellWidth / 2;
         int clearingY = gridY * cellHeight + cellHeight / 2;
-        newClearingLocation = new Vector2Int(clearingX, clearingY);
 
-        // Set the new clearing location
-        clearingLocations.Add(newClearingLocation); // Store the new clearing location
+        Vector2Int clearingLocation = new Vector2Int(clearingX, clearingY);
+        clearingLocations.Add(clearingLocation); // Store the new clearing location
+
+        return clearingLocation;
+    }
+
+    // Perform BFS to create a clearing region
+    void PerformBFSForClearing(Vector2Int clearingLocation, int guaranteedLayers, float probabilityDecayRate, int maxLayer)
+    {
+        /*
+            * Perform BFS to create a clearing region
+            * The BFS starts from the clearing location and expands outwards
+            * The probability of clearing a cell decreases with distance from the clearing location
+            * The number of guaranteed layers is the number of layers that will be cleared with 100% probability
+        */
 
         // BFS queue
         Queue<Vector2Int> queue = new Queue<Vector2Int>();
         HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
 
-        queue.Enqueue(newClearingLocation);
-        visited.Add(newClearingLocation);
+        queue.Enqueue(clearingLocation);
+        visited.Add(clearingLocation);
 
         // Start with 100% probability
         float currentProbability = 1f;
@@ -407,10 +430,7 @@ public class MapGenerator : MonoBehaviour
             Vector2Int cell = queue.Dequeue();
 
             // Set this cell to 0 (clearing) based on probability
-            if (currentLayer <= guaranteedLayers || pseudoRandom.NextDouble() < currentProbability)
-            {
-                map[cell.x, cell.y] = 0;
-            }
+            if (currentLayer <= guaranteedLayers || UnityEngine.Random.Range(0f, 1f) < currentProbability)  map[cell.x, cell.y] = 0;
 
             // Explore neighbors
             Vector2Int[] directions = {
@@ -443,81 +463,83 @@ public class MapGenerator : MonoBehaviour
                 currentLayer++;
 
                 // Reduce probability after guaranteed layers
-                if (currentLayer > guaranteedLayers)
-                {
-                    currentProbability *= probabilityDecayRate;
-                }
+                if (currentLayer > guaranteedLayers) currentProbability *= probabilityDecayRate;
             }
-            if (currentLayer > maxLayer)
+            if (currentLayer > maxLayer) break; // Stop if we exceed the maximum layer
+        }
+    }
+
+
+    // Generate spiral walls around the clearings
+    void GenerateSpiralWalls(Vector2Int center, Vector2Int maxSpiralsInterval, Vector2Int maxSpiralsLengthInterval, float growthFactor)
+    {
+        // Parameters for spiral generation
+        int maxSpirals = UnityEngine.Random.Range(maxSpiralsInterval[0], maxSpiralsInterval[1]); // Number of spirals to generate
+        int direction = UnityEngine.Random.Range(0, 2) == 0 ? 1 : -1; // Direction of the spirals (clockwise or counter-clockwise)
+        float increaseAngle = 2 * Mathf.PI / maxSpirals; // Angle increment for each spiral
+        float startDistance = 0.01f; // Starting distance from the center
+
+        for (int i = 0; i < maxSpirals; i++)
+        {
+            // Random angle to start the spiral
+            float startAngle = i * increaseAngle; // Incremental angle for each spiral
+            int maxLength = UnityEngine.Random.Range(maxSpiralsLengthInterval[0], maxSpiralsLengthInterval[1]); // Random length for each spiral
+
+            // Generate the spiral
+            GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, direction);
+        }
+    }
+
+    // Generate an Euler spiral
+    void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor, float startDistance, int maxLength, int direction)
+    {
+        /*
+            * Generate an Euler spiral
+            * The spiral starts at the center and expands outwards
+            * The angle and distance are incremented to create the spiral effect
+        */
+
+        Vector2 currentPos = new Vector2(center.x, center.y);
+        float angle = startAngle;
+        float distance = startDistance;
+        // Create wall segments
+        for (int i = 0; i < maxLength; i++)
+        {
+            // Calculate next position using Euler spiral formula
+            // In an Euler spiral, the curvature increases linearly with distance
+            angle += direction* growthFactor * distance / 10f;
+            
+            // Calculate next position
+            Vector2 nextPos = currentPos + new Vector2(
+                Mathf.Cos(angle) * 1.0f,  // Step size of 1 unit per iteration
+                Mathf.Sin(angle) * 1.0f
+            );
+            
+            // Convert to grid coordinates and bound check
+            int gridX = Mathf.RoundToInt(nextPos.x);
+            int gridY = Mathf.RoundToInt(nextPos.y);
+            
+            // Ensure we're still in bounds
+            if (gridX > 0 && gridX < width - 1 && gridY > 0 && gridY < height - 1)
             {
-                break; // Stop if we exceed the maximum layer
+                // Draw the line between current and next position
+                DrawLine((int)currentPos.x, (int)currentPos.y, gridX, gridY);
+                
+                // Update current position
+                currentPos = nextPos;
+                
+                // Increase distance for spiral effect
+                distance += 0.1f;
+            }
+            else
+            {
+                // If we've gone out of bounds, stop this spiral
+                break;
             }
         }
-    }
+    }   
 
-// Generate spiral walls around the clearings
-void GenerateSpiralWalls(Vector2Int center, System.Random pseudoRandom, Vector2Int maxSpiralsInterval, Vector2Int maxSpiralsLengthInterval, float growthFactor )
-{
-    // Parameters for spiral generation
-    int maxSpirals = pseudoRandom.Next(maxSpiralsInterval[0], maxSpiralsInterval[1]);  // Number of spirals to generate
-    int direction = pseudoRandom.Next(0, 2) == 0 ? 1 : -1; // Direction of the spirals (clockwise or counter-clockwise)
-    float increaseAngle = 2*Mathf.PI/maxSpirals; // Angle increment for each spiral
-    float startDistance = 0.01f; // Starting distance from the center
-    
-    for (int i = 0; i < maxSpirals; i++)
-    {
-        // Random angle to start the spiral
-        // startAngle = (float)pseudoRandom.NextDouble() * 2 * Mathf.PI;
-        float startAngle = i * increaseAngle; // Incremental angle for each spiral
-        int maxLength = pseudoRandom.Next(maxSpiralsLengthInterval[0], maxSpiralsLengthInterval[1]); // Random length for each spiral
-        // Generate the spiral
-        GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom, direction);
-    }
-}
-
-// Generate an Euler spiral
-void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor, float startDistance, int maxLength, System.Random pseudoRandom, int direction)
-{
-    Vector2 currentPos = new Vector2(center.x, center.y);
-    float angle = startAngle;
-    float distance = startDistance;
-    // Create wall segments
-    for (int i = 0; i < maxLength; i++)
-    {
-        // Calculate next position using Euler spiral formula
-        // In an Euler spiral, the curvature increases linearly with distance
-        angle += direction* growthFactor * distance / 10f;
-        
-        // Calculate next position
-        Vector2 nextPos = currentPos + new Vector2(
-            Mathf.Cos(angle) * 1.0f,  // Step size of 1 unit per iteration
-            Mathf.Sin(angle) * 1.0f
-        );
-        
-        // Convert to grid coordinates and bound check
-        int gridX = Mathf.RoundToInt(nextPos.x);
-        int gridY = Mathf.RoundToInt(nextPos.y);
-        
-        // Ensure we're still in bounds
-        if (gridX > 0 && gridX < width - 1 && gridY > 0 && gridY < height - 1)
-        {
-            // Place a wall
-            // map[gridX, gridY] = 0;
-            DrawLine((int)currentPos.x, (int)currentPos.y, gridX, gridY);
-            
-            // Update current position
-            currentPos = nextPos;
-            
-            // Increase distance for spiral effect
-            distance += 0.1f;
-        }
-        else
-        {
-            // If we've gone out of bounds, stop this spiral
-            break;
-        }
-    }
-}
+    // Draw a line between two points
     void DrawLine(int x0, int y0, int x1, int y1)
     {
         int dx = Mathf.Abs(x1 - x0);
@@ -528,7 +550,7 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
 
         while (true)
         {
-            // Place a wall at the current position
+            // Set the cell to 0 (path)
             map[x0, y0] = 0;
 
             // Check if we've reached the end point
@@ -579,490 +601,474 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
     }
 
 
+    // Place the temple, dragons and player
     void PlaceObjects()
-{
-    // Place the temple at the first clearing location
-    if (templePrefab != null && clearingLocations.Count > 0)
     {
-        temple = PlacePrefab(templePrefab, clearingLocations[0], "Temple");
-        Debug.Log($"Temple placed at: {clearingLocations[0]}");
-    }
+        // Place the temple at the first clearing location
+        if (templePrefab != null && clearingLocations.Count > 0) temple = PlacePrefab(templePrefab, clearingLocations[0], "Temple");
 
-    // Place dragon prefabs
-    for (int i = 1; i <= 4; i++)
-    {
-        if (dragonPrefabs[i - 1] != null && i < clearingLocations.Count)
+        // Place dragon prefabs
+        for (int i = 1; i <= 4; i++)
         {
-            GameObject dragon = PlacePrefab(dragonPrefabs[i - 1], clearingLocations[i], $"Dragon{i}");
-            dragon.transform.localScale = dragonScale;
-            dragons.Add(dragon);
-            AddDragonBehavior(dragon, clearingLocations[i]);
-            Debug.Log($"Dragon{i} placed at: {clearingLocations[i]}");
+            if (dragonPrefabs[i - 1] != null && i < clearingLocations.Count)
+            {
+                GameObject dragon = PlacePrefab(dragonPrefabs[i - 1], clearingLocations[i], $"Dragon{i}");
+                dragon.transform.localScale = dragonScale;
+                dragons.Add(dragon);
+                AddDragonBehavior(dragon, clearingLocations[i]);
+            }
         }
-    }
 
-    // Place the player prefab on the last clearing
-    if (playerPrefab != null && clearingLocations.Count > 1)
-    {
-        player = PlacePrefab(playerPrefab, clearingLocations[^1], "Player");
-        Debug.Log($"Player placed at: {clearingLocations[^1]}");
+        // Place the player prefab on the last clearing
+        if (playerPrefab != null && clearingLocations.Count > 1) player = PlacePrefab(playerPrefab, clearingLocations[^1], "Player");
     }
-}
  
 
-// Helper function to place a prefab at a specific clearing
-GameObject PlacePrefab(GameObject prefab, Vector2Int clearingLocation, string name)
-{
-    Vector3 position = new Vector3(
-        -width / 2 + clearingLocation.x + 0.5f,
-        0, // Adjust Y-axis if needed
-        -height / 2 + clearingLocation.y + 0.5f
-    );
-
-    GameObject instance = Instantiate(prefab, position, Quaternion.Euler(90, 0, 0));
-    instance.name = name;
-
-    // Set the temple reference if placing the temple
-    if (name == "Temple")
+    // Helper function to place a prefab at a specific clearing
+    GameObject PlacePrefab(GameObject prefab, Vector2Int clearingLocation, string name)
     {
-        temple = instance;
+        Vector3 position = new Vector3(
+            -width / 2 + clearingLocation.x + 0.5f,
+            0, 
+            -height / 2 + clearingLocation.y + 0.5f
+        );
+
+        GameObject instance = Instantiate(prefab, position, Quaternion.Euler(90, 0, 0));
+        instance.name = name;
+
+        return instance;
     }
 
-    return instance;
-}
-// Function to connect all consecutive clearings with paths
-void ConnectClearings()
-{
-
-    // Get the Minimum Spanning Tree (MST) of the clearing positions
-    List<(Vector2Int, Vector2Int)> mstEdges = GetMST(clearingLocations);
-
-    // Connect the clearings using the MST edges
-    foreach ((Vector2Int start, Vector2Int end) in mstEdges)
+    // Function to connect the clearings using the Minimum Spanning Tree (MST)
+    void ConnectClearings()
     {
-        // Parameters for path generation
-        int numSamplePoints = 13; // Number of points to sample along the shortest path
-        float curviness = 0.9f; // How much the path should curve (0-1)
-        int pathThickness = 1; // Thickness of the path
 
-        // Generate an S-shaped path between the two clearings
-        CreateSShapedPath(start, end, numSamplePoints, curviness, pathThickness);
-    }
-}
+        // Get the Minimum Spanning Tree (MST) of the clearing positions
+        List<(Vector2Int, Vector2Int)> mstEdges = GetMST(clearingLocations);
 
-// Create an S-shaped path between two points
-void CreateSShapedPath(Vector2Int start, Vector2Int end, int numSamplePoints, float curviness, int pathThickness)
-{
-    // Step 1: Find the shortest path using A*
-    List<Vector2Int> shortestPath = FindShortestPath(start, end);
-    
-    // If no path was found, create a fallback path
-    if (shortestPath.Count == 0)
-    {
-        Debug.Log($"No path found between {start} and {end}. Creating fallback path.");
-        shortestPath = CreateFallbackPath(start, end);
-    }
-    
-    // Step 2: Sample points from the path
-    List<Vector2Int> sampledPoints = SamplePathPoints(shortestPath, numSamplePoints);
-    
-    // Step 3: Generate an S-shaped curve using cubic interpolation
-    List<Vector2Int> sShapedPath = InterpolateCubicPath(sampledPoints, curviness);
-    
-    // Step 4: Draw the path with the specified thickness
-    DrawPathWithThickness(sShapedPath, pathThickness);
-}
-
-// Find the shortest path between two points using A* algorithm
-List<Vector2Int> FindShortestPath(Vector2Int start, Vector2Int end)
-{
-    // A* algorithm implementation
-    Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
-    Dictionary<Vector2Int, float> gScore = new Dictionary<Vector2Int, float>();
-    Dictionary<Vector2Int, float> fScore = new Dictionary<Vector2Int, float>();
-    
-    // Priority queue implemented with a sorted list
-    List<KeyValuePair<float, Vector2Int>> openSet = new List<KeyValuePair<float, Vector2Int>>();
-    HashSet<Vector2Int> closedSet = new HashSet<Vector2Int>();
-    
-    // Initialize scores
-    gScore[start] = 0;
-    fScore[start] = ManhattanDistance(start, end);
-    openSet.Add(new KeyValuePair<float, Vector2Int>(fScore[start], start));
-    
-    while (openSet.Count > 0)
-    {
-        // Get the node with the lowest fScore
-        Vector2Int current = openSet[0].Value;
-        openSet.RemoveAt(0);
-        
-        if (current.Equals(end))
+        // Connect the clearings using the MST edges
+        foreach ((Vector2Int start, Vector2Int end) in mstEdges)
         {
-            // Reconstruct path
-            return ReconstructPath(cameFrom, current);
+            // Parameters for path generation
+            int numSamplePoints = 13; // Number of points to sample along the shortest path
+            float curviness = 0.9f; // How much the path should curve (0-1)
+            int pathThickness = 1; // Thickness of the path
+
+            // Generate an S-shaped path between the two clearings
+            CreateSShapedPath(start, end, numSamplePoints, curviness, pathThickness);
+        }
+    }
+
+    // Create an S-shaped path between two points
+    void CreateSShapedPath(Vector2Int start, Vector2Int end, int numSamplePoints, float curviness, int pathThickness)
+    {
+        // Find the shortest path using A*
+        List<Vector2Int> shortestPath = FindShortestPath(start, end);
+        
+        // If no path was found, create a fallback path
+        if (shortestPath.Count == 0) shortestPath = CreateFallbackPath(start, end);
+        
+        // Sample points from the path
+        List<Vector2Int> sampledPoints = SamplePathPoints(shortestPath, numSamplePoints);
+        
+        // Generate an S-shaped curve using cubic interpolation
+        List<Vector2Int> sShapedPath = InterpolateCubicPath(sampledPoints, curviness);
+        
+        // Draw the path with the specified thickness
+        DrawPathWithThickness(sShapedPath, pathThickness);
+    }
+
+    // Find the shortest path between two points using A* algorithm
+    List<Vector2Int> FindShortestPath(Vector2Int start, Vector2Int end)
+    {
+        // A* algorithm implementation
+        Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
+        Dictionary<Vector2Int, float> gScore = new Dictionary<Vector2Int, float>();
+        Dictionary<Vector2Int, float> fScore = new Dictionary<Vector2Int, float>();
+        
+        // Priority queue implemented with a sorted list
+        List<KeyValuePair<float, Vector2Int>> openSet = new List<KeyValuePair<float, Vector2Int>>();
+        HashSet<Vector2Int> closedSet = new HashSet<Vector2Int>();
+        
+        // Initialize scores
+        gScore[start] = 0;
+        fScore[start] = ManhattanDistance(start, end);
+        openSet.Add(new KeyValuePair<float, Vector2Int>(fScore[start], start));
+        
+        while (openSet.Count > 0)
+        {
+            // Get the node with the lowest fScore
+            Vector2Int current = openSet[0].Value;
+            openSet.RemoveAt(0);
+            
+            if (current.Equals(end))
+            {
+                // Reconstruct path
+                return ReconstructPath(cameFrom, current);
+            }
+            
+            closedSet.Add(current);
+            
+            // Check all neighbors
+            Vector2Int[] directions = {
+                new Vector2Int(0, 1),    // up
+                new Vector2Int(1, 0),    // right
+                new Vector2Int(0, -1),   // down
+                new Vector2Int(-1, 0),   // left
+                new Vector2Int(1, 1),    // diagonal up-right
+                new Vector2Int(1, -1),   // diagonal down-right
+                new Vector2Int(-1, -1),  // diagonal down-left
+                new Vector2Int(-1, 1)    // diagonal up-left
+            };
+            
+            foreach (Vector2Int dir in directions)
+            {
+                Vector2Int neighbor = new Vector2Int(current.x + dir.x, current.y + dir.y);
+                
+                // Check if the neighbor is valid
+                if (!IsInMapRange(neighbor.x, neighbor.y) || closedSet.Contains(neighbor))
+                    continue;
+                
+                // Check if the neighbor is a wall (value = 1)
+                if (map[neighbor.x, neighbor.y] == 1) continue;
+                
+                // Calculate tentative gScore
+                float tentativeGScore = gScore[current] + 
+                    (dir.x != 0 && dir.y != 0 ? 1.414f : 1f); // Diagonal cost is sqrt(2)
+                
+                if (!gScore.ContainsKey(neighbor) || tentativeGScore < gScore[neighbor])
+                {
+                    // This path is better than any previous one
+                    cameFrom[neighbor] = current;
+                    gScore[neighbor] = tentativeGScore;
+                    fScore[neighbor] = gScore[neighbor] + ManhattanDistance(neighbor, end);
+                    
+                    // Add to open set if not already there
+                    bool found = false;
+                    for (int i = 0; i < openSet.Count; i++)
+                    {
+                        if (openSet[i].Value.Equals(neighbor))
+                        {
+                            found = true;
+                            openSet[i] = new KeyValuePair<float, Vector2Int>(fScore[neighbor], neighbor);
+                            break;
+                        }
+                    }
+                    
+                    if (!found)
+                    {
+                        openSet.Add(new KeyValuePair<float, Vector2Int>(fScore[neighbor], neighbor));
+                    }
+                    
+                    // Keep the open set sorted by fScore
+                    openSet.Sort((a, b) => a.Key.CompareTo(b.Key));
+                }
+            }
         }
         
-        closedSet.Add(current);
+        // No path found
+        return new List<Vector2Int>();
+    }
+
+    // Create a fallback path when A* fails to find a route
+    List<Vector2Int> CreateFallbackPath(Vector2Int start, Vector2Int end)
+    {
+        List<Vector2Int> fallbackPath = new List<Vector2Int>();
         
-        // Check all neighbors
-        Vector2Int[] directions = {
-            new Vector2Int(0, 1),    // up
-            new Vector2Int(1, 0),    // right
-            new Vector2Int(0, -1),   // down
-            new Vector2Int(-1, 0),   // left
-            new Vector2Int(1, 1),    // diagonal up-right
-            new Vector2Int(1, -1),   // diagonal down-right
-            new Vector2Int(-1, -1),  // diagonal down-left
-            new Vector2Int(-1, 1)    // diagonal up-left
-        };
+        // Add start point
+        fallbackPath.Add(start);
         
-        foreach (Vector2Int dir in directions)
+        // Add a midpoint to create a slight curve
+        Vector2Int midPoint = new Vector2Int(
+            (start.x + end.x) / 2, 
+            (start.y + end.y) / 2
+        );
+        
+        // Add some variance to the midpoint to create a curved path
+        System.Random random = new System.Random(seed.GetHashCode() + start.x * 1000 + end.y);
+        int offsetRange = Mathf.Max(5, Mathf.Min(width, height) / 10);
+        midPoint.x += random.Next(-offsetRange, offsetRange + 1);
+        midPoint.y += random.Next(-offsetRange, offsetRange + 1);
+        
+        // Make sure the midpoint is within map bounds
+        midPoint.x = Mathf.Clamp(midPoint.x, 1, width - 2);
+        midPoint.y = Mathf.Clamp(midPoint.y, 1, height - 2);
+        
+        // Add the midpoint
+        fallbackPath.Add(midPoint);
+        
+        // Add end point
+        fallbackPath.Add(end);
+        
+        // Now add points along the lines between start, mid and end
+        List<Vector2Int> detailedPath = new List<Vector2Int>();
+        
+        // Add points between start and mid
+        AddPointsAlongLine(detailedPath, start, midPoint);
+        
+        // Add points between mid and end
+        AddPointsAlongLine(detailedPath, midPoint, end);
+        
+        return detailedPath;
+    }
+
+    // Add points along a line using Bresenham's line algorithm
+    void AddPointsAlongLine(List<Vector2Int> path, Vector2Int start, Vector2Int end)
+    {
+        int x0 = start.x;
+        int y0 = start.y;
+        int x1 = end.x;
+        int y1 = end.y;
+        
+        int dx = Mathf.Abs(x1 - x0);
+        int dy = Mathf.Abs(y1 - y0);
+        int sx = x0 < x1 ? 1 : -1;
+        int sy = y0 < y1 ? 1 : -1;
+        int err = dx - dy;
+        
+        while (true)
         {
-            Vector2Int neighbor = new Vector2Int(current.x + dir.x, current.y + dir.y);
+            path.Add(new Vector2Int(x0, y0));
             
-            // Check if the neighbor is valid
-            if (!IsInMapRange(neighbor.x, neighbor.y) || closedSet.Contains(neighbor))
-                continue;
+            if (x0 == x1 && y0 == y1)
+                break;
             
-            // Check if the neighbor is a wall (value = 1)
-            if (map[neighbor.x, neighbor.y] == 1)
-                continue;
-            
-            // Calculate tentative gScore
-            float tentativeGScore = gScore[current] + 
-                (dir.x != 0 && dir.y != 0 ? 1.414f : 1f); // Diagonal cost is sqrt(2)
-            
-            if (!gScore.ContainsKey(neighbor) || tentativeGScore < gScore[neighbor])
+            int e2 = 2 * err;
+            if (e2 > -dy)
             {
-                // This path is better than any previous one
-                cameFrom[neighbor] = current;
-                gScore[neighbor] = tentativeGScore;
-                fScore[neighbor] = gScore[neighbor] + ManhattanDistance(neighbor, end);
-                
-                // Add to open set if not already there
-                bool found = false;
-                for (int i = 0; i < openSet.Count; i++)
-                {
-                    if (openSet[i].Value.Equals(neighbor))
-                    {
-                        found = true;
-                        openSet[i] = new KeyValuePair<float, Vector2Int>(fScore[neighbor], neighbor);
-                        break;
-                    }
-                }
-                
-                if (!found)
-                {
-                    openSet.Add(new KeyValuePair<float, Vector2Int>(fScore[neighbor], neighbor));
-                }
-                
-                // Keep the open set sorted by fScore
-                openSet.Sort((a, b) => a.Key.CompareTo(b.Key));
+                err -= dy;
+                x0 += sx;
+            }
+            if (e2 < dx)
+            {
+                err += dx;
+                y0 += sy;
             }
         }
     }
-    
-    // No path found
-    return new List<Vector2Int>();
-}
 
-// Create a fallback path when A* fails to find a route
-List<Vector2Int> CreateFallbackPath(Vector2Int start, Vector2Int end)
-{
-    List<Vector2Int> fallbackPath = new List<Vector2Int>();
-    
-    // Add start point
-    fallbackPath.Add(start);
-    
-    // Add a midpoint to create a slight curve
-    Vector2Int midPoint = new Vector2Int(
-        (start.x + end.x) / 2, 
-        (start.y + end.y) / 2
-    );
-    
-    // Add some variance to the midpoint to create a curved path
-    System.Random random = new System.Random(seed.GetHashCode() + start.x * 1000 + end.y);
-    int offsetRange = Mathf.Max(5, Mathf.Min(width, height) / 10);
-    midPoint.x += random.Next(-offsetRange, offsetRange + 1);
-    midPoint.y += random.Next(-offsetRange, offsetRange + 1);
-    
-    // Make sure the midpoint is within map bounds
-    midPoint.x = Mathf.Clamp(midPoint.x, 1, width - 2);
-    midPoint.y = Mathf.Clamp(midPoint.y, 1, height - 2);
-    
-    // Add the midpoint
-    fallbackPath.Add(midPoint);
-    
-    // Add end point
-    fallbackPath.Add(end);
-    
-    // Now add points along the lines between start, mid and end
-    List<Vector2Int> detailedPath = new List<Vector2Int>();
-    
-    // Add points between start and mid
-    AddPointsAlongLine(detailedPath, start, midPoint);
-    
-    // Add points between mid and end
-    AddPointsAlongLine(detailedPath, midPoint, end);
-    
-    return detailedPath;
-}
-
-// Add points along a line using Bresenham's line algorithm
-void AddPointsAlongLine(List<Vector2Int> path, Vector2Int start, Vector2Int end)
-{
-    int x0 = start.x;
-    int y0 = start.y;
-    int x1 = end.x;
-    int y1 = end.y;
-    
-    int dx = Mathf.Abs(x1 - x0);
-    int dy = Mathf.Abs(y1 - y0);
-    int sx = x0 < x1 ? 1 : -1;
-    int sy = y0 < y1 ? 1 : -1;
-    int err = dx - dy;
-    
-    while (true)
+    // Calculate Manhattan distance between two points
+    float ManhattanDistance(Vector2Int a, Vector2Int b)
     {
-        path.Add(new Vector2Int(x0, y0));
-        
-        if (x0 == x1 && y0 == y1)
-            break;
-        
-        int e2 = 2 * err;
-        if (e2 > -dy)
-        {
-            err -= dy;
-            x0 += sx;
-        }
-        if (e2 < dx)
-        {
-            err += dx;
-            y0 += sy;
-        }
+        return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
     }
-}
-// Calculate heuristic (Manhattan distance)
-float ManhattanDistance(Vector2Int a, Vector2Int b)
-{
-    return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
-}
 
-// Reconstruct the path from start to end
-List<Vector2Int> ReconstructPath(Dictionary<Vector2Int, Vector2Int> cameFrom, Vector2Int current)
-{
-    List<Vector2Int> path = new List<Vector2Int>();
-    path.Add(current);
-    
-    while (cameFrom.ContainsKey(current))
+    // Reconstruct the path from start to end
+    List<Vector2Int> ReconstructPath(Dictionary<Vector2Int, Vector2Int> cameFrom, Vector2Int current)
     {
-        current = cameFrom[current];
-        path.Insert(0, current);
+        List<Vector2Int> path = new List<Vector2Int>();
+        path.Add(current);
+        
+        while (cameFrom.ContainsKey(current))
+        {
+            current = cameFrom[current];
+            path.Insert(0, current);
+        }
+        
+        return path;
     }
-    
-    return path;
-}
 
-// Sample points from the path
-List<Vector2Int> SamplePathPoints(List<Vector2Int> path, int numSamplePoints)
-{
-    List<Vector2Int> sampledPoints = new List<Vector2Int>();
-    
-    // Always include start and end points
-    sampledPoints.Add(path[0]);
-    
-    if (path.Count <= 2)
+    // Sample points from the path
+    List<Vector2Int> SamplePathPoints(List<Vector2Int> path, int numSamplePoints)
     {
-        // If path is too short, just return start and end
+        List<Vector2Int> sampledPoints = new List<Vector2Int>();
+        
+        // Always include start and end points
+        sampledPoints.Add(path[0]);
+        
+        if (path.Count <= 2)
+        {
+            // If path is too short, just return start and end
+            sampledPoints.Add(path[path.Count - 1]);
+            return sampledPoints;
+        }
+        
+        // Calculate sample intervals
+        float step = (float)(path.Count - 1) / (numSamplePoints - 1);
+        
+        // Add intermediate points
+        for (int i = 1; i < numSamplePoints - 1; i++)
+        {
+            int index = Mathf.FloorToInt(i * step);
+            sampledPoints.Add(path[index]);
+        }
+        
+        // Add end point
         sampledPoints.Add(path[path.Count - 1]);
+        
         return sampledPoints;
     }
-    
-    // Calculate sample intervals
-    float step = (float)(path.Count - 1) / (numSamplePoints - 1);
-    
-    // Add intermediate points
-    for (int i = 1; i < numSamplePoints - 1; i++)
-    {
-        int index = Mathf.FloorToInt(i * step);
-        sampledPoints.Add(path[index]);
-    }
-    
-    // Add end point
-    sampledPoints.Add(path[path.Count - 1]);
-    
-    return sampledPoints;
-}
 
-// Create an S-shaped path using cubic interpolation
-List<Vector2Int> InterpolateCubicPath(List<Vector2Int> controlPoints, float curviness)
-{
-    if (controlPoints.Count < 2)
-        return controlPoints;
-    
-    List<Vector2Int> resultPath = new List<Vector2Int>();
-    int numSegments = 20; // Number of points to generate per segment
-    
-    for (int i = 0; i < controlPoints.Count - 1; i++)
+    // Create an S-shaped path using cubic interpolation
+    List<Vector2Int> InterpolateCubicPath(List<Vector2Int> controlPoints, float curviness)
     {
-        Vector2 p0 = i > 0 ? controlPoints[i - 1] : controlPoints[i];
-        Vector2 p1 = controlPoints[i];
-        Vector2 p2 = controlPoints[i + 1];
-        Vector2 p3 = i + 2 < controlPoints.Count ? controlPoints[i + 2] : p2 + (p2 - p1);
+        if (controlPoints.Count < 2)
+            return controlPoints;
         
-        // Apply curviness to control points
-        Vector2 dir1 = (p2 - p0).normalized * curviness;
-        Vector2 dir2 = (p3 - p1).normalized * curviness;
-        Vector2 cp1 = p1 + dir1 * Vector2.Distance(p1, p2) * 0.5f;
-        Vector2 cp2 = p2 - dir2 * Vector2.Distance(p1, p2) * 0.5f;
+        List<Vector2Int> resultPath = new List<Vector2Int>();
+        int numSegments = 20; // Number of points to generate per segment
         
-        // Calculate cubic Bezier curve points
-        for (int j = 0; j <= numSegments; j++)
+        for (int i = 0; i < controlPoints.Count - 1; i++)
         {
-            float t = j / (float)numSegments;
-            Vector2 point = CubicBezier(p1, cp1, cp2, p2, t);
-            resultPath.Add(new Vector2Int(Mathf.RoundToInt(point.x), Mathf.RoundToInt(point.y)));
-        }
-    }
-    
-    return resultPath;
-}
-
-// Calculate cubic Bezier point
-Vector2 CubicBezier(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, float t)
-{
-    float u = 1 - t;
-    float tt = t * t;
-    float uu = u * u;
-    float uuu = uu * u;
-    float ttt = tt * t;
-    
-    Vector2 p = uuu * p0; // (1-t)^3 * P0
-    p += 3 * uu * t * p1; // 3(1-t)^2 * t * P1
-    p += 3 * u * tt * p2; // 3(1-t) * t^2 * P2
-    p += ttt * p3; // t^3 * P3
-    
-    return p;
-}
-
-// Draw the path with the specified thickness
-void DrawPathWithThickness(List<Vector2Int> path, int thickness)
-{
-    foreach (Vector2Int point in path)
-    {
-        // Draw a "circle" of the specified thickness
-        for (int xOffset = -thickness; xOffset <= thickness; xOffset++)
-        {
-            for (int yOffset = -thickness; yOffset <= thickness; yOffset++)
+            Vector2 p0 = i > 0 ? controlPoints[i - 1] : controlPoints[i];
+            Vector2 p1 = controlPoints[i];
+            Vector2 p2 = controlPoints[i + 1];
+            Vector2 p3 = i + 2 < controlPoints.Count ? controlPoints[i + 2] : p2 + (p2 - p1);
+            
+            // Apply curviness to control points
+            Vector2 dir1 = (p2 - p0).normalized * curviness;
+            Vector2 dir2 = (p3 - p1).normalized * curviness;
+            Vector2 cp1 = p1 + dir1 * Vector2.Distance(p1, p2) * 0.5f;
+            Vector2 cp2 = p2 - dir2 * Vector2.Distance(p1, p2) * 0.5f;
+            
+            // Calculate cubic Bezier curve points
+            for (int j = 0; j <= numSegments; j++)
             {
-                int x = point.x + xOffset;
-                int y = point.y + yOffset;
-                
-                // Check if within circle and map bounds
-                if (xOffset * xOffset + yOffset * yOffset <= thickness * thickness && 
-                    IsInMapRange(x, y))
+                float t = j / (float)numSegments;
+                Vector2 point = CubicBezier(p1, cp1, cp2, p2, t);
+                resultPath.Add(new Vector2Int(Mathf.RoundToInt(point.x), Mathf.RoundToInt(point.y)));
+            }
+        }
+        
+        return resultPath;
+    }
+
+    // Calculate cubic Bezier point
+    Vector2 CubicBezier(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, float t)
+    {
+        float u = 1 - t;
+        float tt = t * t;
+        float uu = u * u;
+        float uuu = uu * u;
+        float ttt = tt * t;
+        
+        Vector2 p = uuu * p0; // (1-t)^3 * P0
+        p += 3 * uu * t * p1; // 3(1-t)^2 * t * P1
+        p += 3 * u * tt * p2; // 3(1-t) * t^2 * P2
+        p += ttt * p3; // t^3 * P3
+        
+        return p;
+    }
+
+    // Draw the path with the specified thickness
+    void DrawPathWithThickness(List<Vector2Int> path, int thickness)
+    {
+        foreach (Vector2Int point in path)
+        {
+            // Draw a "circle" of the specified thickness
+            for (int xOffset = -thickness; xOffset <= thickness; xOffset++)
+            {
+                for (int yOffset = -thickness; yOffset <= thickness; yOffset++)
                 {
-                    map[x, y] = 0; // Set to empty space (0)
+                    int x = point.x + xOffset;
+                    int y = point.y + yOffset;
+                    
+                    // Check if within circle and map bounds
+                    if (xOffset * xOffset + yOffset * yOffset <= thickness * thickness && 
+                        IsInMapRange(x, y))
+                    {
+                        map[x, y] = 0; // Set to empty space (0)
+                    }
                 }
             }
         }
     }
-}
 
-// Function to connect all clearings using a Minimum Spanning Tree (MST)
-List<(Vector2Int, Vector2Int)> GetMST(List<Vector2Int> clearingPositions)
-{
-    // List to store the edges of the MST
-    List<(Vector2Int, Vector2Int)> mstEdges = new List<(Vector2Int, Vector2Int)>();
-
-    // Priority queue to store edges with their weights
-    List<(float, Vector2Int, Vector2Int)> edges = new List<(float, Vector2Int, Vector2Int)>();
-
-    // Set to track visited nodes
-    HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
-
-    // Start with the first clearing position
-    if (clearingPositions.Count == 0) return mstEdges;
-    Vector2Int startNode = clearingPositions[0];
-    visited.Add(startNode);
-
-    // Add all edges from the start node to the priority queue
-    foreach (Vector2Int otherNode in clearingPositions)
+    // Function to connect all clearings using a Minimum Spanning Tree (MST)
+    List<(Vector2Int, Vector2Int)> GetMST(List<Vector2Int> clearingPositions)
     {
-        if (otherNode != startNode)
+        // List to store the edges of the MST
+        List<(Vector2Int, Vector2Int)> mstEdges = new List<(Vector2Int, Vector2Int)>();
+
+        // Priority queue to store edges with their weights
+        List<(float, Vector2Int, Vector2Int)> edges = new List<(float, Vector2Int, Vector2Int)>();
+
+        // Set to track visited nodes
+        HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
+
+        // Start with the first clearing position
+        if (clearingPositions.Count == 0) return mstEdges;
+        Vector2Int startNode = clearingPositions[0];
+        visited.Add(startNode);
+
+        // Add all edges from the start node to the priority queue
+        foreach (Vector2Int otherNode in clearingPositions)
         {
-            float weight = ManhattanDistance(startNode, otherNode);
-            edges.Add((weight, startNode, otherNode));
-        }
-    }
-
-    // Sort edges by weight (ascending)
-    edges.Sort((a, b) => a.Item1.CompareTo(b.Item1));
-
-    // Prim's algorithm to find the MST
-    while (visited.Count < clearingPositions.Count)
-    {
-        // Find the smallest edge that connects a visited node to an unvisited node
-        (float weight, Vector2Int nodeA, Vector2Int nodeB) = edges[0];
-        edges.RemoveAt(0);
-
-        if (visited.Contains(nodeA) && !visited.Contains(nodeB))
-        {
-            // Add the edge to the MST
-            mstEdges.Add((nodeA, nodeB));
-            visited.Add(nodeB);
-
-            // Add new edges from the newly visited node
-            foreach (Vector2Int otherNode in clearingPositions)
+            if (otherNode != startNode)
             {
-                if (!visited.Contains(otherNode))
-                {
-                    float newWeight = ManhattanDistance(nodeB, otherNode);
-                    edges.Add((newWeight, nodeB, otherNode));
-                }
+                float weight = ManhattanDistance(startNode, otherNode);
+                edges.Add((weight, startNode, otherNode));
             }
-
-            // Sort edges again after adding new ones
-            edges.Sort((a, b) => a.Item1.CompareTo(b.Item1));
         }
-    }
 
-    return mstEdges;
-}
+        // Sort edges by weight (ascending)
+        edges.Sort((a, b) => a.Item1.CompareTo(b.Item1));
 
-void InitializePrefabs()
-{
-    // Load tree prefabs
-    treePrefabs = new GameObject[]
-    {
-        Resources.Load<GameObject>("Tree1"),
-        Resources.Load<GameObject>("Tree2"),
-        Resources.Load<GameObject>("Tree3")
-    };
-
-    // Load the temple prefab
-    templePrefab = Resources.Load<GameObject>("Temple");
-    if (templePrefab == null)
-    {
-        Debug.LogError("Temple prefab not found in Resources folder!");
-    }
-
-    // Load dragon prefabs
-    dragonPrefabs = new GameObject[4];
-    for (int i = 0; i < 4; i++)
-    {
-        dragonPrefabs[i] = Resources.Load<GameObject>($"Dragon{i + 1}");
-        if (dragonPrefabs[i] == null)
+        // Prim's algorithm to find the MST
+        while (visited.Count < clearingPositions.Count)
         {
-            Debug.LogError($"Dragon{i + 1} prefab not found in Resources folder!");
+            // Find the smallest edge that connects a visited node to an unvisited node
+            (float weight, Vector2Int nodeA, Vector2Int nodeB) = edges[0];
+            edges.RemoveAt(0);
+
+            if (visited.Contains(nodeA) && !visited.Contains(nodeB))
+            {
+                // Add the edge to the MST
+                mstEdges.Add((nodeA, nodeB));
+                visited.Add(nodeB);
+
+                // Add new edges from the newly visited node
+                foreach (Vector2Int otherNode in clearingPositions)
+                {
+                    if (!visited.Contains(otherNode))
+                    {
+                        float newWeight = ManhattanDistance(nodeB, otherNode);
+                        edges.Add((newWeight, nodeB, otherNode));
+                    }
+                }
+
+                // Sort edges again after adding new ones
+                edges.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+            }
         }
+
+        return mstEdges;
     }
 
-    // Load the player prefab
-    playerPrefab = Resources.Load<GameObject>("Player");
-    if (playerPrefab == null)
+    // Initialize prefabs
+    void InitializePrefabs()
     {
-        Debug.LogError("Player prefab not found in Resources folder!");
+        // Load tree prefabs
+        treePrefabs = new GameObject[]
+        {
+            Resources.Load<GameObject>("Tree1"),
+            Resources.Load<GameObject>("Tree2"),
+            Resources.Load<GameObject>("Tree3")
+        };
+
+        // Load the temple prefab
+        templePrefab = Resources.Load<GameObject>("Temple");
+        if (templePrefab == null)
+        {
+            Debug.LogError("Temple prefab not found in Resources folder!");
+        }
+
+        // Load dragon prefabs
+        dragonPrefabs = new GameObject[4];
+        for (int i = 0; i < 4; i++)
+        {
+            dragonPrefabs[i] = Resources.Load<GameObject>($"Dragon{i + 1}");
+            if (dragonPrefabs[i] == null)
+            {
+                Debug.LogError($"Dragon{i + 1} prefab not found in Resources folder!");
+            }
+        }
+
+        // Load the player prefab
+        playerPrefab = Resources.Load<GameObject>("Player");
+        if (playerPrefab == null)
+        {
+            Debug.LogError("Player prefab not found in Resources folder!");
+        }
     }
-}
 }
