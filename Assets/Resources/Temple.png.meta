@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: db37ae72f116f4863991eb1f759cd5d8
+guid: e0ab8119b23764a8b963bdeebdeeac9d
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -6369879539158651996
-    second: "Ilustracio\u0301n_sin_ti\u0301tulo_0"
+      213: -1641426866252558263
+    second: "Ilustracio\u0301n_sin_ti\u0301tulo 2_0"
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: "Ilustracio\u0301n_sin_ti\u0301tulo_0"
+      name: "Ilustracio\u0301n_sin_ti\u0301tulo 2_0"
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 2038
-        height: 2041
+        x: 29
+        y: 38
+        width: 1967
+        height: 2003
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 4ab6b66ee44a997a0800000000000000
-      internalID: -6369879539158651996
+      spriteID: 940db3836fa7839e0800000000000000
+      internalID: -1641426866252558263
       vertices: []
       indices: 
       edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      "Ilustracio\u0301n_sin_ti\u0301tulo_0": -6369879539158651996
+      "Ilustracio\u0301n_sin_ti\u0301tulo 2_0": -1641426866252558263
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
