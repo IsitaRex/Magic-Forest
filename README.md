@@ -39,6 +39,7 @@ A **clearing** is generated using **Breadth-First Search (BFS)** to create a spa
   <img src="./docs/BFS.png" alt="Collision Avoidance in a 5x5 Grid" width="600">
 </div>
 
+
   - Start from a randomly chosen point `clearingLocation` within the central region of the map (to avoid edges).
   - Use a queue to explore neighboring cells in all four cardinal directions (up, down, left, right).
   - Mark cells as empty (`0`) based on a **probability decay**:
@@ -63,6 +64,32 @@ guaranteedLayers = 8
 probabilityDecayRate = 0.9
 maxLayers = 15
 ```
+
+## Stage 2: Cellular Automata for Smoothing
+
+The cellular automata algorithm is applied to smooth the dragon and temple clearings and make their shapes more irregular and natural-looking. This enhances the variety and realism of the level.
+
+### Algorithm
+- For each cell in the grid:
+  - Count the number of neighboring cells that are walls (`1`).
+  - Apply the following rules:
+    - If a cell has more than 4 wall neighbors, it becomes a wall (`1`).
+    - If a cell has fewer than 4 wall neighbors, it becomes empty (`0`).
+- This process is repeated for a fixed number of iterations (e.g., 5) to achieve the desired smoothing effect.
+
+
+---
+
+## Stage 3: Connecting Spirals and Clearings
+
+### Purpose
+- This stage focuses on connecting the spirals and clearings to ensure the level is playable.
+- The goal is to create a network of paths that guide the player through the forest while maintaining the mystical and challenging nature of the environment.
+
+### Implementation (To Be Written)
+- Details of this stage will be added later as it has not yet been implemented.
+
+
 
 ### Generating Spirals 🌀
 **Spirals** are generated using the **Euler Spiral formula**, starting from the temple clearing and dragon clearings.
@@ -113,32 +140,6 @@ Where
 - `θ_0`: Initial angle (starting direction of the spiral).
 - `k`: Curvature rate, which increases linearly with `t`.
 In our implementation, we approximate this curve iteratively using small steps.
-
-## Stage 2: Cellular Automata for Smoothing
-
-The cellular automata algorithm is applied to smooth the dragon and temple clearings and make their shapes more irregular and natural-looking. This enhances the variety and realism of the level.
-
-### Algorithm
-- For each cell in the grid:
-  - Count the number of neighboring cells that are walls (`1`).
-  - Apply the following rules:
-    - If a cell has more than 4 wall neighbors, it becomes a wall (`1`).
-    - If a cell has fewer than 4 wall neighbors, it becomes empty (`0`).
-- This process is repeated for a fixed number of iterations (e.g., 5) to achieve the desired smoothing effect.
-
-In order to avoid applying the cellular automata to the clearings we mark them as `map[x,y] = 2` and skip them on the stage 2 part of the code.
-
----
-
-## Stage 3: Connecting Spirals and Clearings
-
-### Purpose
-- This stage focuses on connecting the spirals and clearings to ensure the level is playable.
-- The goal is to create a network of paths that guide the player through the forest while maintaining the mystical and challenging nature of the environment.
-
-### Implementation (To Be Written)
-- Details of this stage will be added later as it has not yet been implemented.
-
 ---
 
 ## Summary

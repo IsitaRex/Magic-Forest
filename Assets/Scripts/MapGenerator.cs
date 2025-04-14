@@ -29,6 +29,8 @@ public class MapGenerator : MonoBehaviour
 	private GameObject[] treePrefabs; // Array to store the tree prefabs
 	private List<GameObject> placedTrees = new List<GameObject>(); // List to store all instantiated trees
 	private Vector2Int templeLocation; // Store the location of the temple
+	
+    private Vector2Int clearingLocation; // Store the location of the temple
     private List<Vector2Int> clearingLocations = new List<Vector2Int>(); // Store the locations of the clearings of the dragons and temple
 	private List<Vector3Int> spiralLocation =  new List<Vector3Int>(); // Store the location of the spiral
 	/*
@@ -80,7 +82,7 @@ public class MapGenerator : MonoBehaviour
 		MeshGenerator meshGen = GetComponent<MeshGenerator>();
 		meshGen.GenerateMesh(map, 1);
 		 // Place the dragon
-        PlaceObjects();
+        
 	}
 
 	/*
@@ -94,40 +96,39 @@ public class MapGenerator : MonoBehaviour
 		}
 
 		System.Random pseudoRandom = new System.Random(seed.GetHashCode());
-        RandomFillMap();
-        int maxLayer = 15;
-        BuildClearingRegion(13, 0.9f, maxLayer);
-        GenerateSpiralWalls(templeLocation, pseudoRandom, new Vector2Int(4, 6), new Vector2Int(100, 150), 0.2f);
+        FillMap(); // Fill the map with walls
+        int maxLayers = 15;
+        BuildClearingRegion(13, 0.9f, maxLayers); // Build the temple region
+        // GenerateSpiralWalls(clearingLocation, pseudoRandom, new Vector2Int(4, 6), new Vector2Int(100, 150), 0.2f);
 
+        // Build The clearing regions for the dragons
         for (int i = 0; i < 4; ++i)
         {
-            BuildClearingRegion(8, 0.9f, maxLayer);
-            GenerateSpiralWalls(templeLocation, pseudoRandom, new Vector2Int(4, 6), new Vector2Int(50, 60), 0.7f);
+            BuildClearingRegion(8, 0.7f, maxLayers);
+            // GenerateSpiralWalls(clearingLocation, pseudoRandom, new Vector2Int(4, 6), new Vector2Int(50, 60), 0.7f);
         }
     }
 	
-	void RandomFillMap()
-	{
-		if (useRandomSeed)
+    void PopulateMapSpirals(){
+        if (useRandomSeed)
 		{
 			seed = Time.time.ToString();
 		}
 
 		System.Random pseudoRandom = new System.Random(seed.GetHashCode());
-
+        GenerateSpiralWalls(clearingLocations[0], pseudoRandom, new Vector2Int(4, 6), new Vector2Int(100, 150), 0.2f);
+        for(int i = 1; i < clearingLocations.Count; ++i)
+        {
+            GenerateSpiralWalls(clearingLocations[i], pseudoRandom, new Vector2Int(4, 6), new Vector2Int(50, 60), 0.7f);
+        }
+    }
+	void FillMap()
+	{
 		for (int x = 0; x < width; x++)
 		{
 			for (int y = 0; y < height; y++)
 			{
                 map[x, y] = 1;
-				// if (x == 0 || x == width - 1 || y == 0 || y == height - 1)
-				// {
-				// 	map[x, y] = 1;
-				// }
-				// else
-				// {
-				// 	map[x, y] = (pseudoRandom.Next(0, 100) < randomFillPercent) ? 1 : 0;
-				// }
 			}
 		}
 		
@@ -142,10 +143,7 @@ public class MapGenerator : MonoBehaviour
 		{
 			for (int y = 0; y < height; y++)
 			{
-                if(map[x, y] == 2)
-                {
-                    continue; // Skip if a spiral
-                }
+                // if(map[x, y] == 2) continue; // Skip if a spiral
 				int neighbourWallTiles = GetSurroundingWallCount(x, y);
 
 				if (neighbourWallTiles > 4)
@@ -235,9 +233,12 @@ void PlaceTrees()
 	 */
 	void ProcessMap()
 	{
-		Repaint();
-        ConnectIslands(5); 
+        PopulateMapSpirals();
+		// Repaint();
+        // ConnectIslands(5); 
+        // GenerateBorderSpirals(10, new System.Random(seed.GetHashCode())); // Generate 10 spirals at random border points
 		PlaceTrees();
+        PlaceObjects();
 	}
 
 	void AddMapBorder()
@@ -311,7 +312,7 @@ void AddDragonBehavior(GameObject dragon, Vector2Int startPosition)
 void BuildClearingRegion(int guaranteedLayers, float probabilityDecayRate, int maxLayer)
 {
     System.Random pseudoRandom = new System.Random(seed.GetHashCode());
-    Vector2Int newTempleLocation;
+    Vector2Int newClearingLocation;
 
     // Divide the map into a 5x5 grid
     int cellWidth = width / 5;
@@ -331,15 +332,15 @@ void BuildClearingRegion(int guaranteedLayers, float probabilityDecayRate, int m
         // Calculate the center of the chosen cell
         int templeX = gridX * cellWidth + cellWidth / 2;
         int templeY = gridY * cellHeight + cellHeight / 2;
-        newTempleLocation = new Vector2Int(templeX, templeY);
+        newClearingLocation = new Vector2Int(templeX, templeY);
 
         // Check if the new location is far enough from all existing temples
         validLocation = true;
-        foreach (Vector2Int existingTemple in clearingLocations)
+        foreach (Vector2Int existingClearing in clearingLocations)
         {
             // Check if the new location is in the same or adjacent grid cell
-            int existingGridX = existingTemple.x / cellWidth;
-            int existingGridY = existingTemple.y / cellHeight;
+            int existingGridX = existingClearing.x / cellWidth;
+            int existingGridY = existingClearing.y / cellHeight;
 
             if (Mathf.Abs(gridX - existingGridX) <= 1 && Mathf.Abs(gridY - existingGridY) <= 1)
             {
@@ -358,16 +359,15 @@ void BuildClearingRegion(int guaranteedLayers, float probabilityDecayRate, int m
     }
 
     // Set the new temple location
-    templeLocation = newTempleLocation;
-    clearingLocations.Add(templeLocation); // Store the new temple location
-    Debug.Log("Temple location: " + templeLocation);
+    clearingLocation = newClearingLocation;
+    clearingLocations.Add(clearingLocation); // Store the new temple location
 
     // BFS queue
     Queue<Vector2Int> queue = new Queue<Vector2Int>();
     HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
 
-    queue.Enqueue(templeLocation);
-    visited.Add(templeLocation);
+    queue.Enqueue(clearingLocation);
+    visited.Add(clearingLocation);
 
     // Start with 100% probability
     float currentProbability = 1f;
@@ -538,7 +538,7 @@ void DrawLine(int x0, int y0, int x1, int y1)
     while (true)
     {
         // Place a wall at the current position
-        map[x0, y0] = 2;
+        map[x0, y0] = 0;
 
         // Check if we've reached the end point
         if (x0 == x1 && y0 == y1) break;
@@ -695,7 +695,8 @@ void ConnectIslands(int stepsBeforeSpiral)
         Vector2Int end = clearingLocations[i + 1];
 
         // Draw a line to connect the two islands
-        ConnectWithLine(start, end);
+        // ConnectWithLine(start, end);
+        ConnectWithCubicInterpolation(start, end, pseudoRandom, 2.0f, 1);
     }
 }
 
@@ -735,7 +736,6 @@ void ConnectWithLine(Vector2Int start, Vector2Int end)
         stepCounter++;
     }
 }
-
 void GenerateSpiralFromPoint(Vector2Int center, System.Random pseudoRandom)
 {
     // Parameters for the spiral
@@ -747,6 +747,74 @@ void GenerateSpiralFromPoint(Vector2Int center, System.Random pseudoRandom)
 
     // Generate the spiral
     GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom, direction, -1);
+}
+
+void GenerateBorderSpirals(int numberOfSpirals, System.Random pseudoRandom)
+{
+    for (int i = 0; i < numberOfSpirals; i++)
+    {
+        // Select a random border position
+        Vector2Int borderPoint = GetRandomBorderPoint(pseudoRandom);
+
+        // Generate a spiral from the selected border point
+        GenerateSpiralFromPoint(borderPoint, pseudoRandom);
+    }
+}
+
+Vector2Int GetRandomBorderPoint(System.Random pseudoRandom)
+{
+    // Determine which border to use: 0 = top, 1 = bottom, 2 = left, 3 = right
+    int border = pseudoRandom.Next(0, 4);
+
+    switch (border)
+    {
+        case 0: // Top border
+            return new Vector2Int(pseudoRandom.Next(0, width), 0);
+        case 1: // Bottom border
+            return new Vector2Int(pseudoRandom.Next(0, width), height - 1);
+        case 2: // Left border
+            return new Vector2Int(0, pseudoRandom.Next(0, height));
+        case 3: // Right border
+            return new Vector2Int(width - 1, pseudoRandom.Next(0, height));
+        default:
+            return new Vector2Int(0, 0); // Fallback (shouldn't happen)
+    }
+}
+
+void ConnectWithCubicInterpolation(Vector2Int start, Vector2Int end, System.Random pseudoRandom, float curveIntensity, int thickness)
+{
+    // Define control points for the cubic Bézier curve
+    Vector2 controlPoint1 = new Vector2(
+        start.x + pseudoRandom.Next(-width / 4, width / 4) * curveIntensity,
+        start.y + pseudoRandom.Next(-height / 4, height / 4) * curveIntensity
+    );
+
+    Vector2 controlPoint2 = new Vector2(
+        end.x + pseudoRandom.Next(-width / 4, width / 4) * curveIntensity,
+        end.y + pseudoRandom.Next(-height / 4, height / 4) * curveIntensity
+    );
+
+    // Number of steps to interpolate
+    int steps = 50;
+
+    // Generate the cubic Bézier curve
+    for (int i = 0; i <= steps; i++)
+    {
+        float t = i / (float)steps;
+
+        // Cubic Bézier formula
+        Vector2 point = Mathf.Pow(1 - t, 3) * (Vector2)start +
+                        3 * Mathf.Pow(1 - t, 2) * t * controlPoint1 +
+                        3 * (1 - t) * Mathf.Pow(t, 2) * controlPoint2 +
+                        Mathf.Pow(t, 3) * (Vector2)end;
+
+        // Convert to grid coordinates
+        int gridX = Mathf.RoundToInt(point.x);
+        int gridY = Mathf.RoundToInt(point.y);
+
+        // Ensure the point is within bounds and make the curve thicker
+        SetThickLine(gridX, gridY, thickness);
+    }
 }
 
 void SetThickLine(int x, int y, int thickness)
