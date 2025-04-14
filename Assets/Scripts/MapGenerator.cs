@@ -20,35 +20,27 @@ public class MapGenerator : MonoBehaviour
 	public int randomFillPercent;
 
 	int[,] map;
-	private GameObject dragon; // Reference to the dragon
-	private float dragonMoveSpeed = 0.5f; // Time in seconds between movements
-	private Vector3 dragonScale = new Vector3(1, 2, 1); // Default scale
-	public int numberOfDragons = 3; // Number of dragons to place
-	private NPBehave.Root dragonBehaviorTree;
 	private List<GameObject> dragons = new List<GameObject>(); // List to store all dragon instances
-	private GameObject[] treePrefabs; // Array to store the tree prefabs
+	private Vector3 dragonScale = new Vector3(1, 2, 1); // Default scale of the dragon
+	private NPBehave.Root dragonBehaviorTree;
+	private float dragonMoveSpeed = 0.5f; // Time in seconds between movements
+    private GameObject[] dragonPrefabs; // Array to store dragon prefabs
+	private GameObject[] treePrefabs; // Array to store tree prefabs
+    private GameObject templePrefab; // Temple prefab
+    private GameObject playerPrefab; // Player prefab
 	private List<GameObject> placedTrees = new List<GameObject>(); // List to store all instantiated trees
 	private Vector2Int templeLocation; // Store the location of the temple
-	
-    private Vector2Int clearingLocation; // Store the location of the temple
-    private List<Vector2Int> clearingLocations = new List<Vector2Int>(); // Store the locations of the clearings of the dragons and temple
-	private List<Vector3Int> spiralLocation =  new List<Vector3Int>(); // Store the location of the spiral
-    private GameObject currentTemple; // Store a reference to the current temple
-    private bool[,] gridCellOccupied; // Tracks which cells in the 5x5 grid are occupied
-    private GameObject trex; // Reference to the T-Rex instance
+    private List<Vector2Int> clearingLocations = new List<Vector2Int>(); // Store the locations of the clearings of the dragons, temple and player
+    private GameObject temple; // Store a reference to the current temple
+    private bool[,] gridCellOccupied; // Division of the map in regions of 5xt and tracks which cells are occupied
+    private GameObject player; // Reference to the player instance 
 	/*
 	 * Generate the map on start, on mouse click
 	 */
 	void Start()
 	{
-		treePrefabs = new GameObject[]
-    {
-        Resources.Load<GameObject>("Tree1"),
-        Resources.Load<GameObject>("Tree2"),
-        Resources.Load<GameObject>("Tree3")
-    };
-
-		GenerateMap();
+		InitializePrefabs(); // Initialize the prefabs
+		GenerateMap(); 
 	}
 
 	void Update()
@@ -61,7 +53,6 @@ public class MapGenerator : MonoBehaviour
 
 	void GenerateMap()
 	{
-
         // Clear previous map data
         ClearMapData();
 
@@ -85,12 +76,11 @@ public class MapGenerator : MonoBehaviour
 		// Generate mesh
 		MeshGenerator meshGen = GetComponent<MeshGenerator>();
 		meshGen.GenerateMesh(map, 1);
-		 // Place the dragon
         
 	}
 
 	/*
-	 * STAGE 1: Populate the map
+	 * STAGE 1: Populate the map (Build the clearing regions)
 	 */
 	void PopulateMap()
     {
@@ -103,43 +93,17 @@ public class MapGenerator : MonoBehaviour
         FillMap(); // Fill the map with walls
         int maxLayers = 15;
         BuildClearingRegion(13, 0.9f, maxLayers); // Build the temple region
-        // GenerateSpiralWalls(clearingLocation, pseudoRandom, new Vector2Int(4, 6), new Vector2Int(100, 150), 0.2f);
 
         // Build The clearing regions for the dragons
         for (int i = 0; i < 4; ++i)
         {
             BuildClearingRegion(8, 0.7f, maxLayers);
-            // GenerateSpiralWalls(clearingLocation, pseudoRandom, new Vector2Int(4, 6), new Vector2Int(50, 60), 0.7f);
         }
-        BuildClearingRegion(4, 0.7f, 10);
-    }
-	
-    void PopulateMapSpirals(){
-        if (useRandomSeed)
-		{
-			seed = Time.time.ToString();
-		}
 
-		System.Random pseudoRandom = new System.Random(seed.GetHashCode());
-        GenerateSpiralWalls(clearingLocations[0], pseudoRandom, new Vector2Int(4, 6), new Vector2Int(100, 150), 0.2f);
-        for(int i = 1; i < clearingLocations.Count; ++i)
-        {
-            GenerateSpiralWalls(clearingLocations[i], pseudoRandom, new Vector2Int(4, 6), new Vector2Int(50, 60), 0.7f);
-        }
+        BuildClearingRegion(4, 0.7f, 10); // Build the clearing of the player
     }
-	void FillMap()
-	{
-		for (int x = 0; x < width; x++)
-		{
-			for (int y = 0; y < height; y++)
-			{
-                map[x, y] = 1;
-			}
-		}
-		
-	}
 
-	/*
+    /*
 	 * STAGE 2: Smooth map with CA
 	 */
 	void SmoothMap()
@@ -159,6 +123,45 @@ public class MapGenerator : MonoBehaviour
 			}
 		}
 	}
+
+    /*
+	 * Stage 3: produce the finished map
+	 */
+	void ProcessMap()
+    {
+        PopulateMapSpirals(); // Generate the spiral paths from the clearings
+        ConnectClearings(); // Connect the clearings with paths
+        PlaceTrees(); // Place trees on the map
+        PlaceObjects(); // Place the temple, dragons and player
+    }
+
+    // Fill the map with walls
+	void FillMap()
+	{
+		for (int x = 0; x < width; x++)
+		{
+			for (int y = 0; y < height; y++)
+			{
+                map[x, y] = 1;
+			}
+		}
+		
+	}
+	
+    void PopulateMapSpirals(){
+        if (useRandomSeed)
+		{
+			seed = Time.time.ToString();
+		}
+
+		System.Random pseudoRandom = new System.Random(seed.GetHashCode());
+        GenerateSpiralWalls(clearingLocations[0], pseudoRandom, new Vector2Int(4, 6), new Vector2Int(100, 150), 0.2f);
+        for(int i = 1; i < clearingLocations.Count; ++i)
+        {
+            GenerateSpiralWalls(clearingLocations[i], pseudoRandom, new Vector2Int(4, 6), new Vector2Int(50, 60), 0.7f);
+        }
+    }
+
 
 	int GetSurroundingWallCount(int gridX, int gridY)
 	{
@@ -189,17 +192,17 @@ public class MapGenerator : MonoBehaviour
 		return x >= 0 && x < width && y >= 0 && y < height;
 	}
 
-void ClearTrees()
-{
-    foreach (GameObject tree in placedTrees)
+    void ClearTrees()
     {
-        if (tree != null)
+        foreach (GameObject tree in placedTrees)
         {
-            Destroy(tree);
+            if (tree != null)
+            {
+                Destroy(tree);
+            }
         }
+        placedTrees.Clear(); // Clear the list after destroying the trees
     }
-    placedTrees.Clear(); // Clear the list after destroying the trees
-}
     void PlaceTrees()
     {
             // ClearTrees();
@@ -233,17 +236,7 @@ void ClearTrees()
         }
     }
 
-	/*
-	 * Stage 3: produce the finished map
-	 */
-	void ProcessMap()
-    {
-        PopulateMapSpirals();
-        // Call function to connect clearings
-        ConnectClearings();
-        PlaceTrees();
-        PlaceObjects();
-    }
+	
 
 	void AddMapBorder()
 	{
@@ -267,201 +260,200 @@ void ClearTrees()
 		map = borderedMap;
 	}
 
-void AddDragonBehavior(GameObject dragon, Vector2Int startPosition)
-{
-    // Create the behavior tree
-    var moveAction = new NPBehave.Action(() =>
+    void AddDragonBehavior(GameObject dragon, Vector2Int startPosition)
     {
-        // Find adjacent empty slots
-        List<Vector2Int> adjacentSlots = new List<Vector2Int>();
-        Vector2Int[] directions = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
-
-        foreach (var dir in directions)
+        // Create the behavior tree
+        var moveAction = new NPBehave.Action(() =>
         {
-            Vector2Int newPos = startPosition + dir;
-            if (newPos.x >= 0 && newPos.x < width && newPos.y >= 0 && newPos.y < height && map[newPos.x, newPos.y] == 0)
+            // Find adjacent empty slots
+            List<Vector2Int> adjacentSlots = new List<Vector2Int>();
+            Vector2Int[] directions = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+
+            foreach (var dir in directions)
             {
-                adjacentSlots.Add(newPos);
-            }
-        }
-
-        if (adjacentSlots.Count > 0)
-        {
-            // Move to a random adjacent slot
-            Vector2Int targetSlot = adjacentSlots[UnityEngine.Random.Range(0, adjacentSlots.Count)];
-            Vector3 targetPosition = new Vector3(
-                -width / 2 + targetSlot.x + 0.5f,
-                0,
-                -height / 2 + targetSlot.y + 0.5f
-            );
-
-            if (dragon != null) // Ensure the dragon still exists
-            {
-                dragon.transform.position = targetPosition;
-                startPosition = targetSlot; // Update the dragon's position
-            }
-        }
-    });
-
-    // Add a Wait node to control the speed of movement
-    var waitNode = new NPBehave.Wait(dragonMoveSpeed);
-
-    // Sequence: Wait -> Move
-    var sequence = new NPBehave.Sequence(waitNode, moveAction);
-
-    // Create the behavior tree and store it
-    dragonBehaviorTree = new NPBehave.Root(new NPBehave.Repeater(sequence));
-    dragonBehaviorTree.Start();
-}
-void BuildClearingRegion(int guaranteedLayers, float probabilityDecayRate, int maxLayer)
-{
-    System.Random pseudoRandom = new System.Random(seed.GetHashCode());
-    Vector2Int newClearingLocation;
-
-    // Divide the map into a 5x5 grid
-    int cellWidth = width / 5;
-    int cellHeight = height / 5;
-
-    // Try to find a valid location for the clearing
-    int maxAttempts = 100; // Limit the number of attempts to avoid infinite loops
-    int attempts = 0;
-    bool validLocation = false;
-    int gridX = 0, gridY = 0;
-
-    do
-    {
-        // Choose a random cell in the 5x5 grid
-        gridX = pseudoRandom.Next(0, 5);
-        gridY = pseudoRandom.Next(0, 5);
-
-        // Check if the cell is already occupied
-        if (!gridCellOccupied[gridX, gridY])
-        {
-            // Check if the new location is far enough from all existing clearings
-            validLocation = true;
-            foreach (Vector2Int existingClearing in clearingLocations)
-            {
-                int existingGridX = existingClearing.x / cellWidth;
-                int existingGridY = existingClearing.y / cellHeight;
-
-                // Check if the new location is in the same or adjacent grid cell
-                if (Mathf.Abs(gridX - existingGridX) <= 1 && Mathf.Abs(gridY - existingGridY) <= 1)
+                Vector2Int newPos = startPosition + dir;
+                if (newPos.x >= 0 && newPos.x < width && newPos.y >= 0 && newPos.y < height && map[newPos.x, newPos.y] == 0)
                 {
-                    validLocation = false;
-                    break;
+                    adjacentSlots.Add(newPos);
                 }
             }
-        }
 
-        attempts++;
-    } while (!validLocation && attempts < maxAttempts);
-
-    // If no valid location is found, pick a random available cell
-    if (!validLocation)
-    {
-        Debug.LogWarning("Could not find a valid location after " + maxAttempts + " attempts. Picking a random available cell.");
-        List<Vector2Int> availableCells = new List<Vector2Int>();
-        for (int x = 0; x < 5; x++)
-        {
-            for (int y = 0; y < 5; y++)
+            if (adjacentSlots.Count > 0)
             {
-                if (!gridCellOccupied[x, y])
+                // Move to a random adjacent slot
+                Vector2Int targetSlot = adjacentSlots[UnityEngine.Random.Range(0, adjacentSlots.Count)];
+                Vector3 targetPosition = new Vector3(
+                    -width / 2 + targetSlot.x + 0.5f,
+                    0,
+                    -height / 2 + targetSlot.y + 0.5f
+                );
+
+                if (dragon != null) // Ensure the dragon still exists
                 {
-                    availableCells.Add(new Vector2Int(x, y));
+                    dragon.transform.position = targetPosition;
+                    startPosition = targetSlot; // Update the dragon's position
                 }
             }
-        }
+        });
 
-        if (availableCells.Count > 0)
-        {
-            Vector2Int randomCell = availableCells[pseudoRandom.Next(0, availableCells.Count)];
-            gridX = randomCell.x;
-            gridY = randomCell.y;
-        }
-        else
-        {
-            Debug.LogError("No available cells in the 5x5 grid.");
-            return;
-        }
+        // Add a Wait node to control the speed of movement
+        var waitNode = new NPBehave.Wait(dragonMoveSpeed);
+
+        // Sequence: Wait -> Move
+        var sequence = new NPBehave.Sequence(waitNode, moveAction);
+
+        // Create the behavior tree and store it
+        dragonBehaviorTree = new NPBehave.Root(new NPBehave.Repeater(sequence));
+        dragonBehaviorTree.Start();
     }
-
-    // Mark the chosen cell as occupied
-    gridCellOccupied[gridX, gridY] = true;
-
-    // Calculate the center of the chosen cell
-    int clearingX = gridX * cellWidth + cellWidth / 2;
-    int clearingY = gridY * cellHeight + cellHeight / 2;
-    newClearingLocation = new Vector2Int(clearingX, clearingY);
-
-    // Set the new clearing location
-    clearingLocation = newClearingLocation;
-    clearingLocations.Add(clearingLocation); // Store the new clearing location
-
-    // BFS queue
-    Queue<Vector2Int> queue = new Queue<Vector2Int>();
-    HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
-
-    queue.Enqueue(clearingLocation);
-    visited.Add(clearingLocation);
-
-    // Start with 100% probability
-    float currentProbability = 1f;
-    int currentLayer = 0;
-    int nodesInCurrentLayer = 1;
-    int nodesInNextLayer = 0;
-
-    while (queue.Count > 0)
+    void BuildClearingRegion(int guaranteedLayers, float probabilityDecayRate, int maxLayer)
     {
-        Vector2Int cell = queue.Dequeue();
+        System.Random pseudoRandom = new System.Random(seed.GetHashCode());
+        Vector2Int newClearingLocation;
 
-        // Set this cell to 0 (clearing) based on probability
-        if (currentLayer <= guaranteedLayers || pseudoRandom.NextDouble() < currentProbability)
+        // Divide the map into a 5x5 grid
+        int cellWidth = width / 5;
+        int cellHeight = height / 5;
+
+        // Try to find a valid location for the clearing
+        int maxAttempts = 100; // Limit the number of attempts to avoid infinite loops
+        int attempts = 0;
+        bool validLocation = false;
+        int gridX = 0, gridY = 0;
+
+        do
         {
-            map[cell.x, cell.y] = 0;
-        }
+            // Choose a random cell in the 5x5 grid
+            gridX = pseudoRandom.Next(0, 5);
+            gridY = pseudoRandom.Next(0, 5);
 
-        // Explore neighbors
-        Vector2Int[] directions = {
-            new Vector2Int(0, 1),    // up
-            new Vector2Int(1, 0),    // right
-            new Vector2Int(0, -1),   // down
-            new Vector2Int(-1, 0)    // left
-        };
-
-        foreach (Vector2Int dir in directions)
-        {
-            Vector2Int neighbor = new Vector2Int(cell.x + dir.x, cell.y + dir.y);
-
-            // Check bounds and if already visited
-            if (neighbor.x > 0 && neighbor.x < width - 1 &&
-                neighbor.y > 0 && neighbor.y < height - 1 &&
-                !visited.Contains(neighbor))
+            // Check if the cell is already occupied
+            if (!gridCellOccupied[gridX, gridY])
             {
-                queue.Enqueue(neighbor);
-                visited.Add(neighbor);
-                nodesInNextLayer++;
+                // Check if the new location is far enough from all existing clearings
+                validLocation = true;
+                foreach (Vector2Int existingClearing in clearingLocations)
+                {
+                    int existingGridX = existingClearing.x / cellWidth;
+                    int existingGridY = existingClearing.y / cellHeight;
+
+                    // Check if the new location is in the same or adjacent grid cell
+                    if (Mathf.Abs(gridX - existingGridX) <= 1 && Mathf.Abs(gridY - existingGridY) <= 1)
+                    {
+                        validLocation = false;
+                        break;
+                    }
+                }
+            }
+
+            attempts++;
+        } while (!validLocation && attempts < maxAttempts);
+
+        // If no valid location is found, pick a random available cell
+        if (!validLocation)
+        {
+            Debug.LogWarning("Could not find a valid location after " + maxAttempts + " attempts. Picking a random available cell.");
+            List<Vector2Int> availableCells = new List<Vector2Int>();
+            for (int x = 0; x < 5; x++)
+            {
+                for (int y = 0; y < 5; y++)
+                {
+                    if (!gridCellOccupied[x, y])
+                    {
+                        availableCells.Add(new Vector2Int(x, y));
+                    }
+                }
+            }
+
+            if (availableCells.Count > 0)
+            {
+                Vector2Int randomCell = availableCells[pseudoRandom.Next(0, availableCells.Count)];
+                gridX = randomCell.x;
+                gridY = randomCell.y;
+            }
+            else
+            {
+                Debug.LogError("No available cells in the 5x5 grid.");
+                return;
             }
         }
 
-        nodesInCurrentLayer--;
-        if (nodesInCurrentLayer == 0)
-        {
-            nodesInCurrentLayer = nodesInNextLayer;
-            nodesInNextLayer = 0;
-            currentLayer++;
+        // Mark the chosen cell as occupied
+        gridCellOccupied[gridX, gridY] = true;
 
-            // Reduce probability after guaranteed layers
-            if (currentLayer > guaranteedLayers)
-            {
-                currentProbability *= probabilityDecayRate;
-            }
-        }
-        if (currentLayer > maxLayer)
+        // Calculate the center of the chosen cell
+        int clearingX = gridX * cellWidth + cellWidth / 2;
+        int clearingY = gridY * cellHeight + cellHeight / 2;
+        newClearingLocation = new Vector2Int(clearingX, clearingY);
+
+        // Set the new clearing location
+        clearingLocations.Add(newClearingLocation); // Store the new clearing location
+
+        // BFS queue
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+        HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
+
+        queue.Enqueue(newClearingLocation);
+        visited.Add(newClearingLocation);
+
+        // Start with 100% probability
+        float currentProbability = 1f;
+        int currentLayer = 0;
+        int nodesInCurrentLayer = 1;
+        int nodesInNextLayer = 0;
+
+        while (queue.Count > 0)
         {
-            break; // Stop if we exceed the maximum layer
+            Vector2Int cell = queue.Dequeue();
+
+            // Set this cell to 0 (clearing) based on probability
+            if (currentLayer <= guaranteedLayers || pseudoRandom.NextDouble() < currentProbability)
+            {
+                map[cell.x, cell.y] = 0;
+            }
+
+            // Explore neighbors
+            Vector2Int[] directions = {
+                new Vector2Int(0, 1),    // up
+                new Vector2Int(1, 0),    // right
+                new Vector2Int(0, -1),   // down
+                new Vector2Int(-1, 0)    // left
+            };
+
+            foreach (Vector2Int dir in directions)
+            {
+                Vector2Int neighbor = new Vector2Int(cell.x + dir.x, cell.y + dir.y);
+
+                // Check bounds and if already visited
+                if (neighbor.x > 0 && neighbor.x < width - 1 &&
+                    neighbor.y > 0 && neighbor.y < height - 1 &&
+                    !visited.Contains(neighbor))
+                {
+                    queue.Enqueue(neighbor);
+                    visited.Add(neighbor);
+                    nodesInNextLayer++;
+                }
+            }
+
+            nodesInCurrentLayer--;
+            if (nodesInCurrentLayer == 0)
+            {
+                nodesInCurrentLayer = nodesInNextLayer;
+                nodesInNextLayer = 0;
+                currentLayer++;
+
+                // Reduce probability after guaranteed layers
+                if (currentLayer > guaranteedLayers)
+                {
+                    currentProbability *= probabilityDecayRate;
+                }
+            }
+            if (currentLayer > maxLayer)
+            {
+                break; // Stop if we exceed the maximum layer
+            }
         }
     }
-}
 
 // Generate spiral walls around the clearings
 void GenerateSpiralWalls(Vector2Int center, System.Random pseudoRandom, Vector2Int maxSpiralsInterval, Vector2Int maxSpiralsLengthInterval, float growthFactor )
@@ -478,14 +470,13 @@ void GenerateSpiralWalls(Vector2Int center, System.Random pseudoRandom, Vector2I
         // startAngle = (float)pseudoRandom.NextDouble() * 2 * Mathf.PI;
         float startAngle = i * increaseAngle; // Incremental angle for each spiral
         int maxLength = pseudoRandom.Next(maxSpiralsLengthInterval[0], maxSpiralsLengthInterval[1]); // Random length for each spiral
-        int futureSpiralPlacement = pseudoRandom.Next((int)Math.Floor((double)maxLength/3), (int)Math.Floor((double)maxLength/3)); //Random placement for a potential new spiral 
         // Generate the spiral
-        GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom, direction, futureSpiralPlacement);
+        GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom, direction);
     }
 }
 
 // Generate an Euler spiral
-void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor, float startDistance, int maxLength, System.Random pseudoRandom, int direction, int futureSpiralPlacement)
+void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor, float startDistance, int maxLength, System.Random pseudoRandom, int direction)
 {
     Vector2 currentPos = new Vector2(center.x, center.y);
     float angle = startAngle;
@@ -513,14 +504,6 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
             // Place a wall
             // map[gridX, gridY] = 0;
             DrawLine((int)currentPos.x, (int)currentPos.y, gridX, gridY);
-
-						// check if the current position is the futureSpiralPlacement
-						if (i == futureSpiralPlacement)
-						{
-							spiralLocation.Add(new Vector3Int(gridX, gridY, (int)startAngle));
-						}
-            
-            
             
             // Update current position
             currentPos = nextPos;
@@ -565,90 +548,52 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
         }
     }
 
+    // Clear all map data before generating a new map
     void ClearMapData()
-{
-    // Clear clearing locations
-    clearingLocations.Clear();
-
-    // Clear spiral locations
-    spiralLocation.Clear();
-
-    // Clear placed trees
-    foreach (GameObject tree in placedTrees)
     {
-        if (tree != null)
+        // Clear clearing locations
+        clearingLocations.Clear();
+
+        // Clear placed trees
+        foreach (GameObject tree in placedTrees)
         {
-            Destroy(tree);
+            if (tree != null) Destroy(tree);
         }
-    }
-    placedTrees.Clear();
+        placedTrees.Clear();
 
-    // Clear dragons
-    foreach (GameObject dragon in dragons)
-    {
-        if (dragon != null)
+        // Clear dragons
+        foreach (GameObject dragon in dragons)
         {
-            Destroy(dragon);
+            if (dragon != null) Destroy(dragon);
         }
-    }
-    dragons.Clear();
+        dragons.Clear();
 
-    // Destroy the temple
-    if (currentTemple != null)
-    {
-        Destroy(currentTemple);
-        currentTemple = null;
-    }
+        // Stop the dragon behavior tree if it exists
+        if (dragonBehaviorTree != null) dragonBehaviorTree.Stop();
 
-    // Destroy the T-Rex
-    if (trex != null)
-    {
-        Destroy(trex);
-        trex = null;
-    }
+        // Destroy the temple
+        if (temple != null) Destroy(temple);
 
-    // Stop the dragon behavior tree if it exists
-    if (dragonBehaviorTree != null)
-    {
-        dragonBehaviorTree.Stop();
-        dragonBehaviorTree = null;
+        // Destroy the player
+        if (player != null)  Destroy(player);
     }
-
-    Debug.Log("Map data cleared.");
-}
 
 
     void PlaceObjects()
 {
-    // Load the temple prefab
-    GameObject templePrefab = Resources.Load<GameObject>("Temple");
-    if (templePrefab == null)
-    {
-        Debug.LogError("Temple prefab not found in Resources folder!");
-        return;
-    }
-
     // Place the temple at the first clearing location
-    if (clearingLocations.Count > 0)
+    if (templePrefab != null && clearingLocations.Count > 0)
     {
-        currentTemple = PlacePrefab(templePrefab, clearingLocations[0], "Temple");
+        temple = PlacePrefab(templePrefab, clearingLocations[0], "Temple");
         Debug.Log($"Temple placed at: {clearingLocations[0]}");
     }
 
-    // Load and place dragon prefabs
+    // Place dragon prefabs
     for (int i = 1; i <= 4; i++)
     {
-        GameObject dragonPrefab = Resources.Load<GameObject>($"Dragon{i}");
-        if (dragonPrefab == null)
+        if (dragonPrefabs[i - 1] != null && i < clearingLocations.Count)
         {
-            Debug.LogError($"Dragon{i} prefab not found in Resources folder!");
-            continue;
-        }
-
-        if (i < clearingLocations.Count)
-        {
-            GameObject dragon = PlacePrefab(dragonPrefab, clearingLocations[i], $"Dragon{i}");
-            // Apply the scale
+            GameObject dragon = PlacePrefab(dragonPrefabs[i - 1], clearingLocations[i], $"Dragon{i}");
             dragon.transform.localScale = dragonScale;
             dragons.Add(dragon);
             AddDragonBehavior(dragon, clearingLocations[i]);
@@ -656,20 +601,14 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
         }
     }
 
-    // Load and place the T-Rex prefab on the last clearing
-    GameObject trexPrefab = Resources.Load<GameObject>("Trex");
-    if (trexPrefab == null)
+    // Place the player prefab on the last clearing
+    if (playerPrefab != null && clearingLocations.Count > 1)
     {
-        Debug.LogError("T-Rex prefab not found in Resources folder!");
-        return;
-    }
-
-    if (clearingLocations.Count > 1)
-    {
-        trex = PlacePrefab(trexPrefab, clearingLocations[^1], "Trex");
-        Debug.Log($"T-Rex placed at: {clearingLocations[^1]}");
+        player = PlacePrefab(playerPrefab, clearingLocations[^1], "Player");
+        Debug.Log($"Player placed at: {clearingLocations[^1]}");
     }
 }
+ 
 
 // Helper function to place a prefab at a specific clearing
 GameObject PlacePrefab(GameObject prefab, Vector2Int clearingLocation, string name)
@@ -683,10 +622,10 @@ GameObject PlacePrefab(GameObject prefab, Vector2Int clearingLocation, string na
     GameObject instance = Instantiate(prefab, position, Quaternion.Euler(90, 0, 0));
     instance.name = name;
 
-    // Set the currentTemple reference if placing the temple
+    // Set the temple reference if placing the temple
     if (name == "Temple")
     {
-        currentTemple = instance;
+        temple = instance;
     }
 
     return instance;
@@ -1089,5 +1028,41 @@ List<(Vector2Int, Vector2Int)> GetMST(List<Vector2Int> clearingPositions)
     }
 
     return mstEdges;
+}
+
+void InitializePrefabs()
+{
+    // Load tree prefabs
+    treePrefabs = new GameObject[]
+    {
+        Resources.Load<GameObject>("Tree1"),
+        Resources.Load<GameObject>("Tree2"),
+        Resources.Load<GameObject>("Tree3")
+    };
+
+    // Load the temple prefab
+    templePrefab = Resources.Load<GameObject>("Temple");
+    if (templePrefab == null)
+    {
+        Debug.LogError("Temple prefab not found in Resources folder!");
+    }
+
+    // Load dragon prefabs
+    dragonPrefabs = new GameObject[4];
+    for (int i = 0; i < 4; i++)
+    {
+        dragonPrefabs[i] = Resources.Load<GameObject>($"Dragon{i + 1}");
+        if (dragonPrefabs[i] == null)
+        {
+            Debug.LogError($"Dragon{i + 1} prefab not found in Resources folder!");
+        }
+    }
+
+    // Load the player prefab
+    playerPrefab = Resources.Load<GameObject>("Player");
+    if (playerPrefab == null)
+    {
+        Debug.LogError("Player prefab not found in Resources folder!");
+    }
 }
 }
