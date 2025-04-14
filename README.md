@@ -1,40 +1,41 @@
 # Lónglíng (龙林) 🐉🌸
 *"Lóng" (龙) means "dragon" in Chinese, and "Líng" (林) means "forest."*
 
-# Lónglíng (龙林) 🐉🌸  
-*"Mílóng Sēnlín" (迷龙森林) - The Mystic Dragon Forest*  
-
-Deep within the heart of **Mílóng Sēnlín**, the Mystic Dragon Forest, lies the fabled **Temple of Eternal Whispers**. Legends speak of an ancient sanctuary hidden among the dense trees, where the secrets of immortality and untold power are guarded by the forest's eternal protectors—dragons.  
+Deep within the heart of *Lónglíng*, the mystic Dragon Forest, lies the fabled **Temple of Eternal Whispers**. Legends speak of an ancient sanctuary hidden among the dense trees, where the secrets of immortality and untold power are guarded by the forest's eternal protectors—dragons.  
 
 The forest is alive, its paths twisting and turning into spirals that defy logic and reason. These spirals are no accident; they are the dragons' ancient magic, designed to disorient and confuse any who dare to enter. The spirals are said to represent the eternal cycle of life, death, and rebirth, a sacred pattern that mirrors the dragons' own mystical nature.  
 
 As an adventurer, your quest is to uncover the entrance to the **Temple of Eternal Whispers**, but the journey will not be easy. The dragons will test your resolve, leading you deeper into the labyrinthine spirals of the forest. Each clearing you find may hold a clue—or a trap. The spirals are not just paths; they are trials, meant to separate the worthy from the unworthy.  
 
-Will you navigate the enchanted spirals, outwit the dragons, and uncover the temple's secrets? Or will you become another lost soul, forever wandering the mystical paths of **Mílóng Sēnlín**?  
+Will you navigate the enchanted spirals, outwit the dragons, and uncover the temple's secrets? Or will you become another lost soul, forever wandering the mystical paths of *Lónglíng*?  
 
-# Level Generator Overview
+# Level Generator Overview ⚙️
 
-The level generator for **Mílóng Sēnlín** operates in three distinct stages to create a dense, mystical forest filled with spiraling paths, clearings, and hidden secrets. Below is a detailed breakdown of each stage:
+The level generator for **Lónglíng** operates in three distinct stages to create a dense, mystical forest filled with spiraling paths, clearings, and hidden secrets. Below is a detailed breakdown of each stage:
 
 ---
 
-## Stage 1: Initial Grid Generation
+## **Stage 1:** Initial Grid Generation
 
-### 1.1 Dense Forest Initialization
+### Dense Forest Initialization 🌸
 - The map is initialized as a 2D grid where all cells are set to `1`, representing a dense forest.
 - This ensures that the level starts as a completely filled forest, and clearings and paths are carved out during subsequent steps.
 
-### 1.2 Generating the Temple Clearing
-- A **clearing** is generated using **Breadth-First Search (BFS)** to create a space for the **Temple of Eternal Whispers**.
+### Generating the Temple and Dragon Clearings ⛩️ 🐲
+The level will feature a Temple clearing, the heart of the forest, and several Dragon clearings. Dragons, being fiercely territorial, guard the temple with unwavering vigilance. Their ancient magic test the resolve of intruders, ensuring that only the most determined and worthy adventurers can uncover the secrets of the Temple of Eternal Whispers.
+
+A **clearing** is generated using **Breadth-First Search (BFS)** to create a space for the **Temple of Eternal Whispers**. To prevent collisions between the clearings, the map was divided into a 5x5 grid. This ensures that when a clearing is placed, no other clearings are located in the 8 neighboring cells or in the same cell. This approach maintains proper spacing between clearings, creating a balanced and visually appealing layout. You can see an illustration of this concept in the figure below:
+
+![Collision Avoidance in a 5x5 Grid](./docs/Collisions.png)
 - **BFS Algorithm**:
-  - Start from a randomly chosen point (`templeLocation`) within the central region of the map (to avoid edges).
+  - Start from a randomly chosen point (`clearingLocation`) within the central region of the map (to avoid edges).
   - Use a queue to explore neighboring cells in all four cardinal directions (up, down, left, right).
   - Mark cells as empty (`0`) based on a **probability decay**:
     - Initially, the probability of clearing a cell is `100%`.
     - After a certain number of guaranteed layers, the probability decreases exponentially using a **decay rate** (e.g., `currentProbability *= probabilityDecayRate`).
   - This creates a natural-looking clearing that is larger in the center and tapers off toward the edges.
 
-### 1.3 Generating Dragon Clearings
+### 1.3 Generating Dragon Clearings 🐲
 - Additional clearings are generated for the dragons, separate from the temple clearing.
 - Each dragon clearing is created using a similar BFS approach but with smaller sizes and random starting points.
 - These clearings are later **smoothed** in Stage 2 to make their shapes more organic and irregular.
