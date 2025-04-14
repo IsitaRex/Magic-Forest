@@ -462,25 +462,20 @@ void BuildClearingRegion(int guaranteedLayers, float probabilityDecayRate, int m
     }
 }
 
+// Generate spiral walls around the clearings
 void GenerateSpiralWalls(Vector2Int center, System.Random pseudoRandom, Vector2Int maxSpiralsInterval, Vector2Int maxSpiralsLengthInterval, float growthFactor )
 {
     // Parameters for spiral generation
-    // int maxSpirals = 6;  // Number of spirals to generate
     int maxSpirals = pseudoRandom.Next(maxSpiralsInterval[0], maxSpiralsInterval[1]);  // Number of spirals to generate
-
-    // int maxLength = Mathf.Min(width, height) / 2;  // Maximum length of each spiral
-    int maxLength = 100;  // Maximum length of each spiral
-    int direction = pseudoRandom.Next(0, 2) == 0 ? 1 : -1;
-    float increaseAngle = 2*Mathf.PI/maxSpirals; // Starting angle for the spiral
-    float startAngle = 0; // Starting angle for the spiral
+    int direction = pseudoRandom.Next(0, 2) == 0 ? 1 : -1; // Direction of the spirals (clockwise or counter-clockwise)
+    float increaseAngle = 2*Mathf.PI/maxSpirals; // Angle increment for each spiral
     float startDistance = 0.01f; // Starting distance from the center
-    // GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom);
     
     for (int i = 0; i < maxSpirals; i++)
     {
         // Random angle to start the spiral
         // startAngle = (float)pseudoRandom.NextDouble() * 2 * Mathf.PI;
-        startAngle = i * increaseAngle; // Incremental angle for each spiral
+        int startAngle = i * increaseAngle; // Incremental angle for each spiral
         maxLength = pseudoRandom.Next(maxSpiralsLengthInterval[0], maxSpiralsLengthInterval[1]); // Random length for each spiral
         int futureSpiralPlacement = pseudoRandom.Next((int)Math.Floor((double)maxLength/3), (int)Math.Floor((double)maxLength/3)); //Random placement for a potential new spiral 
         // Generate the spiral
@@ -488,6 +483,7 @@ void GenerateSpiralWalls(Vector2Int center, System.Random pseudoRandom, Vector2I
     }
 }
 
+// Generate an Euler spiral
 void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor, float startDistance, int maxLength, System.Random pseudoRandom, int direction, int futureSpiralPlacement)
 {
     Vector2 currentPos = new Vector2(center.x, center.y);
@@ -568,6 +564,7 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
         }
     }
 
+    // Function to clear all map data
     void ClearMapData()
     {
         // Clear clearing locations
@@ -678,17 +675,17 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
 void ConnectClearings()
 {
 
-    // Connect consecutive clearings
-    for (int i = 0; i < clearingLocations.Count - 1; i++)
+    // Get the Minimum Spanning Tree (MST) of the clearing positions
+    List<(Vector2Int, Vector2Int)> mstEdges = GetMST(clearingLocations);
+
+    // Connect the clearings using the MST edges
+    foreach ((Vector2Int start, Vector2Int end) in mstEdges)
     {
-        Vector2Int start = clearingLocations[i];
-        Vector2Int end = clearingLocations[i + 1];
-        
         // Parameters for path generation
         int numSamplePoints = 13; // Number of points to sample along the shortest path
         float curviness = 0.9f; // How much the path should curve (0-1)
         int pathThickness = 1; // Thickness of the path
-        
+
         // Generate an S-shaped path between the two clearings
         CreateSShapedPath(start, end, numSamplePoints, curviness, pathThickness);
     }
@@ -731,7 +728,7 @@ List<Vector2Int> FindShortestPath(Vector2Int start, Vector2Int end)
     
     // Initialize scores
     gScore[start] = 0;
-    fScore[start] = HeuristicCost(start, end);
+    fScore[start] = ManhattanDistance(start, end);
     openSet.Add(new KeyValuePair<float, Vector2Int>(fScore[start], start));
     
     while (openSet.Count > 0)
@@ -781,7 +778,7 @@ List<Vector2Int> FindShortestPath(Vector2Int start, Vector2Int end)
                 // This path is better than any previous one
                 cameFrom[neighbor] = current;
                 gScore[neighbor] = tentativeGScore;
-                fScore[neighbor] = gScore[neighbor] + HeuristicCost(neighbor, end);
+                fScore[neighbor] = gScore[neighbor] + ManhattanDistance(neighbor, end);
                 
                 // Add to open set if not already there
                 bool found = false;
@@ -887,7 +884,7 @@ void AddPointsAlongLine(List<Vector2Int> path, Vector2Int start, Vector2Int end)
     }
 }
 // Calculate heuristic (Manhattan distance)
-float HeuristicCost(Vector2Int a, Vector2Int b)
+float ManhattanDistance(Vector2Int a, Vector2Int b)
 {
     return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
 }
@@ -1011,5 +1008,66 @@ void DrawPathWithThickness(List<Vector2Int> path, int thickness)
             }
         }
     }
+}
+
+// Function to connect all clearings using a Minimum Spanning Tree (MST)
+List<(Vector2Int, Vector2Int)> GetMST(List<Vector2Int> clearingPositions)
+{
+    // List to store the edges of the MST
+    List<(Vector2Int, Vector2Int)> mstEdges = new List<(Vector2Int, Vector2Int)>();
+
+    // Priority queue to store edges with their weights
+    List<(float, Vector2Int, Vector2Int)> edges = new List<(float, Vector2Int, Vector2Int)>();
+
+    // Set to track visited nodes
+    HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
+
+    // Start with the first clearing position
+    if (clearingPositions.Count == 0) return mstEdges;
+    Vector2Int startNode = clearingPositions[0];
+    visited.Add(startNode);
+
+    // Add all edges from the start node to the priority queue
+    foreach (Vector2Int otherNode in clearingPositions)
+    {
+        if (otherNode != startNode)
+        {
+            float weight = ManhattanDistance(startNode, otherNode);
+            edges.Add((weight, startNode, otherNode));
+        }
+    }
+
+    // Sort edges by weight (ascending)
+    edges.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+
+    // Prim's algorithm to find the MST
+    while (visited.Count < clearingPositions.Count)
+    {
+        // Find the smallest edge that connects a visited node to an unvisited node
+        (float weight, Vector2Int nodeA, Vector2Int nodeB) = edges[0];
+        edges.RemoveAt(0);
+
+        if (visited.Contains(nodeA) && !visited.Contains(nodeB))
+        {
+            // Add the edge to the MST
+            mstEdges.Add((nodeA, nodeB));
+            visited.Add(nodeB);
+
+            // Add new edges from the newly visited node
+            foreach (Vector2Int otherNode in clearingPositions)
+            {
+                if (!visited.Contains(otherNode))
+                {
+                    float newWeight = ManhattanDistance(nodeB, otherNode);
+                    edges.Add((newWeight, nodeB, otherNode));
+                }
+            }
+
+            // Sort edges again after adding new ones
+            edges.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+        }
+    }
+
+    return mstEdges;
 }
 }
