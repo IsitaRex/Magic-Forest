@@ -18,8 +18,7 @@ The level generator for **Lónglíng** operates in three distinct stages to crea
 ## **Stage 1:** Initial Grid Generation
 
 ### Dense Forest Initialization 🌸
-- The map is initialized as a 2D grid where all cells are set to `1`, representing a dense forest.
-- This ensures that the level starts as a completely filled forest, and clearings and paths are carved out during subsequent steps.
+The map is initialized as a 2D grid where all cells are set to `1`, representing a dense forest. This ensures that the level starts as a completely filled forest, and clearings and paths are carved out during subsequent steps.
 
 ### Generating the Temple and Dragon Clearings ⛩️ 🐲
 The level will feature a Temple clearing, the heart of the forest, and several Dragon clearings. Dragons, being fiercely territorial, guard the temple with unwavering vigilance. Their ancient magic test the resolve of intruders, ensuring that only the most determined and worthy adventurers can uncover the secrets of the Temple of Eternal Whispers.
@@ -30,13 +29,19 @@ A **clearing** is generated using **Breadth-First Search (BFS)** to create a spa
 <div align="center">
   <img src="./docs/Collisions.png" alt="Collision Avoidance in a 5x5 Grid" width="600">
 </div>
-- **BFS Algorithm**:
-  - Start from a randomly chosen point (`clearingLocation`) within the central region of the map (to avoid edges).
+
+### BFS Algorithm 
+<div align="center">
+  <img src="./docs/BFS.png" alt="Collision Avoidance in a 5x5 Grid" width="600">
+</div>
+
+  - Start from a randomly chosen point `clearingLocation` within the central region of the map (to avoid edges).
   - Use a queue to explore neighboring cells in all four cardinal directions (up, down, left, right).
   - Mark cells as empty (`0`) based on a **probability decay**:
     - Initially, the probability of clearing a cell is `100%`.
     - After a certain number of guaranteed layers, the probability decreases exponentially using a **decay rate** (e.g., `currentProbability *= probabilityDecayRate`).
   - This creates a natural-looking clearing that is larger in the center and tapers off toward the edges.
+  - Stop when reaching a maximum number of layers `maxLayer`
 
 ### 1.3 Generating Dragon Clearings 🐲
 - Additional clearings are generated for the dragons, separate from the temple clearing.
