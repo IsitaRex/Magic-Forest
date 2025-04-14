@@ -8,9 +8,6 @@ The forest is alive, its paths twisting and turning into spirals that defy logic
 As an adventurer, your quest is to uncover the entrance to the **Temple of Eternal Whispers**, but the journey will not be easy. The dragons will test your resolve, leading you deeper into the labyrinthine spirals of the forest. Each clearing you find may hold a clue—or a trap. The spirals are not just paths; they are trials, meant to separate the worthy from the unworthy.  
 
 Will you navigate the enchanted spirals, outwit the dragons, and uncover the temple's secrets? Or will you become another lost soul, forever wandering the mystical paths of *Lónglíng*?  
-# Acknowledgment
-
-This project is heavily inspired by **Sebastian Lague’s** popular tutorial on **Cellular Automata**. His work provided the foundation for the scripts used in this level generator. You can watch the tutorial series here:  [**Sebastian Lague - Cellular Automata Tutorial**](https://www.youtube.com/watch?v=v7yyZZjF1z4&list=PLFt_AvWsXl0eZgMK_DT5_biRkWXftAOf9)
 
 # Level Generator Overview ⚙️
 
@@ -137,27 +134,28 @@ In our implementation, we approximate this curve iteratively using small steps.
 ---
 
 ### Connect Clearings 🌉
+To ensure the game is playable, it is crucial to establish connectivity between the temple, the dragons, and the player. The level generator achieves this in two steps: first, computing the **Minimum Spanning Tree (MST)** between the clearings, and then building paths with an **S-shape** to create smooth and natural connections.
 
-The level generator connects all clearings using a **Minimum Spanning Tree (MST)** algorithm, ensuring every part of the forest is accessible while maintaining the mystical, maze-like quality.
+#### Building the MST
+The MST ensures that all clearings are accessible while preserving the mystical and maze-like essence of the forest. By minimizing the total connection distance, the MST avoids unnecessary or overly long paths, creating a more cohesive and efficient layout. 
 
-#### Algorithm
-- **Prim's Algorithm** is used to generate the MST:
-  - Start with the temple clearing as the initial node.
-  - For each unvisited clearing, calculate the Manhattan distance to all visited clearings.
-  - Connect the closest unvisited clearing to a visited one with an S-shaped path.
-  - Repeat until all clearings are connected.
+##### Algorithm:
+
+1. Treat each clearing as a node in a graph.
+2. Compute the Manhattan distance between all pairs of clearings to determine edge weights.
+3. Use Prim's Algorithm to construct the MST:
+    * Start with the temple clearing as the initial node.
+    * Iteratively connect the closest unvisited clearing to the visited nodes based on the edge weights.
+    * Repeat until all clearings are connected.
+
+
 
 #### S-Shaped Path Generation
-- Paths between clearings follow natural, curved routes using cubic Bézier interpolation:
-  - The path first attempts to use A* pathfinding to navigate around walls.
-  - If A* fails, a fallback path with a midpoint offset creates a curved connection.
-  - Control points are added along the path and interpolated with cubic Bézier curves:
-    ```csharp
-    Vector2 cp1 = p1 + dir1 * Vector2.Distance(p1, p2) * 0.5f;
-    Vector2 cp2 = p2 - dir2 * Vector2.Distance(p1, p2) * 0.5f;
-    ```
-  - The `curviness` parameter (set to `0.9f`) controls how pronounced the curves are.
-  - Paths have variable thickness (`pathThickness = 1`) to create natural-looking trails.
+Once the MST is generated, it determines which clearings need to be connected. The second stage focuses on creating these connections in a smooth and natural way. First, we check if a path already exists between the clearings using a Breadth-First Search (BFS). If no path is found, a fallback path is generated.
+
+The fallback path is created by drawing a straight line between the two points and introducing a midpoint with added variance to create a slight curve. With the start, midpoint, and end points defined, the path is then interpolated using cubic Bézier curves to produce smooth, natural-looking connections.
+
+The curviness parameter (set to `0.9f`) determines how pronounced the curves are, allowing for fine-tuning of the path's shape. Additionally, paths are drawn with a variable thickness (`pathThickness = 1`) to create natural-looking trails that blend seamlessly into the forest environment.
 
 ### Place Trees 🌲
 
@@ -196,7 +194,34 @@ The final step places the temple, dragons, and player in their respective cleari
   player = PlacePrefab(playerPrefab, clearingLocations[^1], "Player");
   ```
 
-- 
+
+# References and Acknowledgments 📚
+
+This project draws inspiration and utilizes resources from several sources, which have been instrumental in its development:
+
+#### **Sebastian Lague's Cellular Automata Tutorial**
+
+This project is heavily inspired by Sebastian Lague’s popular tutorial on Cellular Automata. His work provided the foundation for the scripts used in this level generator,  particularly the use of **Cellular Automata** for clearing smoothing. You can watch the tutorial series here: [**Sebastian Lague - Cellular Automata Tutorial**](https://www.youtube.com/watch?v=v7yyZZjF1z4&list=PLFt_AvWsXl0eZgMK_DT5_biRkWXftAOf9).
 
 
----
+#### **NPBehave**
+The dragon behavior system is implemented using [**NPBehave**](https://github.com/meniku/NPBehave), a lightweight and flexible behavior tree library for Unity. NPBehave enables the dragons to exhibit dynamic and reactive behaviors, such as patrolling their clearings and responding to player actions.
+
+#### **Unity Documentation**
+The project relies heavily on Unity's built-in tools and APIs for procedural generation, object placement, and randomization. Key Unity features used include:
+- **UnityEngine.Random** for random number generation.
+- **Mathf** for mathematical operations like trigonometry and interpolation.
+- **Unity's Prefab System** for efficient object instantiation.
+
+#### **Other Resources**
+- **Bézier Curves**: The S-shaped paths between clearings are created using cubic Bézier interpolation. For more information on Bézier curves, see: [**Bézier Curve - Wikipedia**](https://en.wikipedia.org/wiki/B%C3%A9zier_curve).
+- **Prim's Algorithm**: The Minimum Spanning Tree (MST) implementation is based on Prim's Algorithm, which ensures efficient and cohesive connectivity between clearings. Learn more: [**Prim's Algorithm - GeeksforGeeks**](https://www.geeksforgeeks.org/prims-minimum-spanning-tree-mst-greedy-algo-5/).
+- **Euler Spiral (Clothoid)**: The spiraling paths in the forest are based on the mathematical concept of the **Euler Spiral**, also known as the **Clothoid**.  
+Learn more about Euler Spirals: [**Euler Spiral - Wikipedia**](https://en.wikipedia.org/wiki/Euler_spiral).
+
+
+# Use of AI 🤖
+
+This project was developed with the assistance of **GitHub Copilot (GPT-4o)**, an AI-powered programming tool. While all the ideas, designs, and logic behind the implementation were my own, I used Copilot to generate baseline code for various parts of the project. These generated suggestions were then reviewed, edited, and refined by me to align with the project's requirements and goals.
+
+Additionally, GitHub Copilot was used to improve the writing and structure of the **README.md** file, ensuring clarity and quality in the documentation.
