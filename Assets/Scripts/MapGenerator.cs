@@ -33,6 +33,8 @@ public class MapGenerator : MonoBehaviour
     private Vector2Int clearingLocation; // Store the location of the temple
     private List<Vector2Int> clearingLocations = new List<Vector2Int>(); // Store the locations of the clearings of the dragons and temple
 	private List<Vector3Int> spiralLocation =  new List<Vector3Int>(); // Store the location of the spiral
+    private GameObject currentTemple; // Store a reference to the current temple
+    private bool[,] gridCellOccupied; // Tracks which cells in the 5x5 grid are occupied
 	/*
 	 * Generate the map on start, on mouse click
 	 */
@@ -64,6 +66,7 @@ public class MapGenerator : MonoBehaviour
 
         // Initialize a new map
         map = new int[width, height];
+        gridCellOccupied = new bool[5, 5]; // Initialize the grid cell occupancy array
 
 		// Stage 1: populate the grid cells
 		PopulateMap();
@@ -107,6 +110,7 @@ public class MapGenerator : MonoBehaviour
             BuildClearingRegion(8, 0.7f, maxLayers);
             // GenerateSpiralWalls(clearingLocation, pseudoRandom, new Vector2Int(4, 6), new Vector2Int(50, 60), 0.7f);
         }
+        BuildClearingRegion(4, 0.7f, 10);
     }
 	
     void PopulateMapSpirals(){
@@ -195,51 +199,50 @@ void ClearTrees()
     }
     placedTrees.Clear(); // Clear the list after destroying the trees
 }
-void PlaceTrees()
-{
-		ClearTrees();
-    for (int x = 0; x < width; x++)
+    void PlaceTrees()
     {
-        for (int y = 0; y < height; y++)
+            // ClearTrees();
+        for (int x = 0; x < width; x++)
         {
-            // Only place trees on non-empty spots
-            if (map[x, y] != 0 && UnityEngine.Random.Range(0, 100) < 100) // 20% chance to place a tree
+            for (int y = 0; y < height; y++)
             {
-                // Select a random tree prefab
-                GameObject treePrefab = treePrefabs[UnityEngine.Random.Range(0, treePrefabs.Length)];
+                // Only place trees on non-empty spots
+                if (map[x, y] != 0 && UnityEngine.Random.Range(0, 100) < 100) // 20% chance to place a tree
+                {
+                    // Select a random tree prefab
+                    GameObject treePrefab = treePrefabs[UnityEngine.Random.Range(0, treePrefabs.Length)];
 
-                // Calculate the position for the tree
-                Vector3 position = new Vector3(
-                    -width / 2 + x + 0.5f,
-                    0, // Adjust Y-axis if needed
-                    -height / 2 + y + 0.5f
-                );
+                    // Calculate the position for the tree
+                    Vector3 position = new Vector3(
+                        -width / 2 + x + 0.5f,
+                        0, // Adjust Y-axis if needed
+                        -height / 2 + y + 0.5f
+                    );
 
-                // Instantiate the tree
-                GameObject tree = Instantiate(treePrefab, position, Quaternion.identity);
+                    // Instantiate the tree
+                    GameObject tree = Instantiate(treePrefab, position, Quaternion.identity);
 
-                // Scale down the tree
-                tree.transform.localScale = new Vector3(0.15f, 0.15f, 0.15f); // Adjust scale as needed
+                    // Scale down the tree
+                    tree.transform.localScale = new Vector3(0.15f, 0.15f, 0.15f); // Adjust scale as needed
 
-                // Add the tree to the list
-                placedTrees.Add(tree);
+                    // Add the tree to the list
+                    placedTrees.Add(tree);
+                }
             }
         }
     }
-}
 
 	/*
 	 * Stage 3: produce the finished map
 	 */
 	void ProcessMap()
-	{
+    {
         PopulateMapSpirals();
-		// Repaint();
-        // ConnectIslands(5); 
-        // GenerateBorderSpirals(10, new System.Random(seed.GetHashCode())); // Generate 10 spirals at random border points
-		PlaceTrees();
+        // Call function to connect clearings
+        ConnectClearings();
+        PlaceTrees();
         PlaceObjects();
-	}
+    }
 
 	void AddMapBorder()
 	{
@@ -318,49 +321,80 @@ void BuildClearingRegion(int guaranteedLayers, float probabilityDecayRate, int m
     int cellWidth = width / 5;
     int cellHeight = height / 5;
 
-    // Try to find a valid location for the temple
+    // Try to find a valid location for the clearing
     int maxAttempts = 100; // Limit the number of attempts to avoid infinite loops
     int attempts = 0;
     bool validLocation = false;
+    int gridX = 0, gridY = 0;
 
     do
     {
         // Choose a random cell in the 5x5 grid
-        int gridX = pseudoRandom.Next(0, 5);
-        int gridY = pseudoRandom.Next(0, 5);
+        gridX = pseudoRandom.Next(0, 5);
+        gridY = pseudoRandom.Next(0, 5);
 
-        // Calculate the center of the chosen cell
-        int templeX = gridX * cellWidth + cellWidth / 2;
-        int templeY = gridY * cellHeight + cellHeight / 2;
-        newClearingLocation = new Vector2Int(templeX, templeY);
-
-        // Check if the new location is far enough from all existing temples
-        validLocation = true;
-        foreach (Vector2Int existingClearing in clearingLocations)
+        // Check if the cell is already occupied
+        if (!gridCellOccupied[gridX, gridY])
         {
-            // Check if the new location is in the same or adjacent grid cell
-            int existingGridX = existingClearing.x / cellWidth;
-            int existingGridY = existingClearing.y / cellHeight;
-
-            if (Mathf.Abs(gridX - existingGridX) <= 1 && Mathf.Abs(gridY - existingGridY) <= 1)
+            // Check if the new location is far enough from all existing clearings
+            validLocation = true;
+            foreach (Vector2Int existingClearing in clearingLocations)
             {
-                validLocation = false;
-                break;
+                int existingGridX = existingClearing.x / cellWidth;
+                int existingGridY = existingClearing.y / cellHeight;
+
+                // Check if the new location is in the same or adjacent grid cell
+                if (Mathf.Abs(gridX - existingGridX) <= 1 && Mathf.Abs(gridY - existingGridY) <= 1)
+                {
+                    validLocation = false;
+                    break;
+                }
             }
         }
 
         attempts++;
     } while (!validLocation && attempts < maxAttempts);
 
+    // If no valid location is found, pick a random available cell
     if (!validLocation)
     {
-        Debug.LogWarning("Could not find a valid location for the temple after " + maxAttempts + " attempts.");
-        return;
+        Debug.LogWarning("Could not find a valid location after " + maxAttempts + " attempts. Picking a random available cell.");
+        List<Vector2Int> availableCells = new List<Vector2Int>();
+        for (int x = 0; x < 5; x++)
+        {
+            for (int y = 0; y < 5; y++)
+            {
+                if (!gridCellOccupied[x, y])
+                {
+                    availableCells.Add(new Vector2Int(x, y));
+                }
+            }
+        }
+
+        if (availableCells.Count > 0)
+        {
+            Vector2Int randomCell = availableCells[pseudoRandom.Next(0, availableCells.Count)];
+            gridX = randomCell.x;
+            gridY = randomCell.y;
+        }
+        else
+        {
+            Debug.LogError("No available cells in the 5x5 grid.");
+            return;
+        }
     }
 
-    // Set the new temple location
+    // Mark the chosen cell as occupied
+    gridCellOccupied[gridX, gridY] = true;
+
+    // Calculate the center of the chosen cell
+    int clearingX = gridX * cellWidth + cellWidth / 2;
+    int clearingY = gridY * cellHeight + cellHeight / 2;
+    newClearingLocation = new Vector2Int(clearingX, clearingY);
+
+    // Set the new clearing location
     clearingLocation = newClearingLocation;
-    clearingLocations.Add(clearingLocation); // Store the new temple location
+    clearingLocations.Add(clearingLocation); // Store the new clearing location
 
     // BFS queue
     Queue<Vector2Int> queue = new Queue<Vector2Int>();
@@ -379,7 +413,7 @@ void BuildClearingRegion(int guaranteedLayers, float probabilityDecayRate, int m
     {
         Vector2Int cell = queue.Dequeue();
 
-        // Set this cell to 1 (land) based on probability
+        // Set this cell to 0 (clearing) based on probability
         if (currentLayer <= guaranteedLayers || pseudoRandom.NextDouble() < currentProbability)
         {
             map[cell.x, cell.y] = 0;
@@ -421,36 +455,13 @@ void BuildClearingRegion(int guaranteedLayers, float probabilityDecayRate, int m
                 currentProbability *= probabilityDecayRate;
             }
         }
-        if(currentLayer > maxLayer)
+        if (currentLayer > maxLayer)
         {
             break; // Stop if we exceed the maximum layer
         }
     }
 }
 
-void GenerateRandomSpirals(System.Random pseudoRandom){
-	// go trough spiralLocation and generate a random spiral
-	for (int i = 0; i < spiralLocation.Count; i++)
-	{
-		Vector2Int center =new Vector2Int(spiralLocation[i][0], spiralLocation[i][1]);
-		int maxSpirals = pseudoRandom.Next(1, 1);  // Number of spirals to generate
-		int maxLength = pseudoRandom.Next(50, 100); // Random length for each spiral
-		int currentAngle = spiralLocation[i][2];
-		// Random select an angle between currentAngle - PI/2 and currentAngle + PI/2
-		float angleRange = Mathf.PI / 2;
-		float minAngle = currentAngle - angleRange;
-		float maxAngle = currentAngle + angleRange;
-		float startAngle = (float)pseudoRandom.NextDouble() * (maxAngle - minAngle) + minAngle;
-		
-		float growthFactor = 0.3f; // Growth factor for the spiral
-		float startDistance = 0.01f; // Starting distance from the center
-		int direction = pseudoRandom.Next(0, 2) == 0 ? 1 : -1;
-		int futureSpiralPlacement = pseudoRandom.Next(0, maxLength); //Random placement for a potential new spiral
-		GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom, direction, futureSpiralPlacement);
-	}
-	// clear the spiralLocation list
-	spiralLocation.Clear();
-}
 void GenerateSpiralWalls(Vector2Int center, System.Random pseudoRandom, Vector2Int maxSpiralsInterval, Vector2Int maxSpiralsLengthInterval, float growthFactor )
 {
     // Parameters for spiral generation
@@ -527,200 +538,341 @@ void GenerateEulerSpiral(Vector2Int center, float startAngle, float growthFactor
         }
     }
 }
-void DrawLine(int x0, int y0, int x1, int y1)
-{
-    int dx = Mathf.Abs(x1 - x0);
-    int dy = Mathf.Abs(y1 - y0);
-    int sx = (x0 < x1) ? 1 : -1;
-    int sy = (y0 < y1) ? 1 : -1;
-    int err = dx - dy;
-
-    while (true)
+    void DrawLine(int x0, int y0, int x1, int y1)
     {
-        // Place a wall at the current position
-        map[x0, y0] = 0;
+        int dx = Mathf.Abs(x1 - x0);
+        int dy = Mathf.Abs(y1 - y0);
+        int sx = (x0 < x1) ? 1 : -1;
+        int sy = (y0 < y1) ? 1 : -1;
+        int err = dx - dy;
 
-        // Check if we've reached the end point
-        if (x0 == x1 && y0 == y1) break;
-
-        int e2 = 2 * err;
-        if (e2 > -dy)
+        while (true)
         {
-            err -= dy;
-            x0 += sx;
-        }
-        if (e2 < dx)
-        {
-            err += dx;
-            y0 += sy;
-        }
-    }
-}
+            // Place a wall at the current position
+            map[x0, y0] = 0;
 
-void ClearMapData()
-{
-    // Clear clearing locations
-    clearingLocations.Clear();
+            // Check if we've reached the end point
+            if (x0 == x1 && y0 == y1) break;
 
-    // Clear spiral locations
-    spiralLocation.Clear();
-
-    // Clear placed trees
-    foreach (GameObject tree in placedTrees)
-    {
-        if (tree != null)
-        {
-            Destroy(tree);
+            int e2 = 2 * err;
+            if (e2 > -dy)
+            {
+                err -= dy;
+                x0 += sx;
+            }
+            if (e2 < dx)
+            {
+                err += dx;
+                y0 += sy;
+            }
         }
     }
-    placedTrees.Clear();
 
-    // Clear dragons
-    foreach (GameObject dragon in dragons)
+    void ClearMapData()
     {
-        if (dragon != null)
+        // Clear clearing locations
+        clearingLocations.Clear();
+
+        // Clear spiral locations
+        spiralLocation.Clear();
+
+        // Clear placed trees
+        foreach (GameObject tree in placedTrees)
         {
-            Destroy(dragon);
+            if (tree != null)
+            {
+                Destroy(tree);
+            }
         }
-    }
-    dragons.Clear();
+        placedTrees.Clear();
 
-    // Destroy the temple
-    if (currentTemple != null)
-    {
-        Destroy(currentTemple);
-        currentTemple = null;
-    }
-
-    // Stop the dragon behavior tree if it exists
-    if (dragonBehaviorTree != null)
-    {
-        dragonBehaviorTree.Stop();
-        dragonBehaviorTree = null;
-    }
-
-    Debug.Log("Map data cleared.");
-}
-void Repaint(){
-	// this function should transform all 0s in the map to 1s and the 2s to 0s
-	for (int x = 0; x < width; x++)
-	{
-		for (int y = 0; y < height; y++)
-		{
-			if (map[x, y] == 2)
-			{
-
-				map[x, y] = 0;
-			}
-		}
-	}
-}
-
-private GameObject currentTemple; // Store a reference to the current temple
-
-void PlaceObjects()
-{
-    // Load the temple prefab
-    GameObject templePrefab = Resources.Load<GameObject>("Temple");
-    if (templePrefab == null)
-    {
-        Debug.LogError("Temple prefab not found in Resources folder!");
-        return;
-    }
-
-    // Place the temple at the first clearing location
-    if (clearingLocations.Count > 0)
-    {
-        Vector2Int templeLocation = clearingLocations[0];
-        Vector3 templePosition = new Vector3(
-            -width / 2 + templeLocation.x + 0.5f,
-            0, // Adjust Y-axis if needed
-            -height / 2 + templeLocation.y + 0.5f
-        );
-
-        // Instantiate the temple and store the reference
-        currentTemple = Instantiate(templePrefab, templePosition, Quaternion.Euler(90, 0, 0));
-        currentTemple.name = "Temple"; // Ensure the temple has a consistent name for debugging
-    }
-
-    // Load the dragon prefabs
-    for (int i = 1; i <= 4; i++)
-    {
-        GameObject dragonPrefab = Resources.Load<GameObject>($"Dragon{i}");
-        if (dragonPrefab == null)
+        // Clear dragons
+        foreach (GameObject dragon in dragons)
         {
-            Debug.LogError($"Dragon{i} prefab not found in Resources folder!");
-            continue;
+            if (dragon != null)
+            {
+                Destroy(dragon);
+            }
+        }
+        dragons.Clear();
+
+        // Destroy the temple
+        if (currentTemple != null)
+        {
+            Destroy(currentTemple);
+            currentTemple = null;
         }
 
-        // Place dragons at the other clearing locations
-        if (i < clearingLocations.Count)
+        // Stop the dragon behavior tree if it exists
+        if (dragonBehaviorTree != null)
         {
-            Vector2Int dragonLocation = clearingLocations[i];
-            Vector3 dragonPosition = new Vector3(
-                -width / 2 + dragonLocation.x + 0.5f,
+            dragonBehaviorTree.Stop();
+            dragonBehaviorTree = null;
+        }
+
+        Debug.Log("Map data cleared.");
+    }
+
+
+    void PlaceObjects()
+    {
+        // Load the temple prefab
+        GameObject templePrefab = Resources.Load<GameObject>("Temple");
+        if (templePrefab == null)
+        {
+            Debug.LogError("Temple prefab not found in Resources folder!");
+            return;
+        }
+
+        // Place the temple at the first clearing location
+        if (clearingLocations.Count > 0)
+        {
+            Vector2Int templeLocation = clearingLocations[0];
+            Vector3 templePosition = new Vector3(
+                -width / 2 + templeLocation.x + 0.5f,
                 0, // Adjust Y-axis if needed
-                -height / 2 + dragonLocation.y + 0.5f
+                -height / 2 + templeLocation.y + 0.5f
             );
 
-            // Instantiate the dragon
-            GameObject dragon = Instantiate(dragonPrefab, dragonPosition, Quaternion.Euler(90, 0, 0));
+            // Instantiate the temple and store the reference
+            currentTemple = Instantiate(templePrefab, templePosition, Quaternion.Euler(90, 0, 0));
+            currentTemple.name = "Temple"; // Ensure the temple has a consistent name for debugging
+        }
 
-            // Apply the scale
-            dragon.transform.localScale = dragonScale;
+        // Load the dragon prefabs
+        for (int i = 1; i <= 4; i++)
+        {
+            GameObject dragonPrefab = Resources.Load<GameObject>($"Dragon{i}");
+            if (dragonPrefab == null)
+            {
+                Debug.LogError($"Dragon{i} prefab not found in Resources folder!");
+                continue;
+            }
 
-            // Add the dragon to the list
-            dragons.Add(dragon);
+            // Place dragons at the other clearing locations
+            if (i < clearingLocations.Count)
+            {
+                Vector2Int dragonLocation = clearingLocations[i];
+                Vector3 dragonPosition = new Vector3(
+                    -width / 2 + dragonLocation.x + 0.5f,
+                    0, // Adjust Y-axis if needed
+                    -height / 2 + dragonLocation.y + 0.5f
+                );
 
-            // Add the behavior tree for movement
-            AddDragonBehavior(dragon, dragonLocation);
+                // Instantiate the dragon
+                GameObject dragon = Instantiate(dragonPrefab, dragonPosition, Quaternion.Euler(90, 0, 0));
+
+                // Apply the scale
+                dragon.transform.localScale = dragonScale;
+
+                // Add the dragon to the list
+                dragons.Add(dragon);
+
+                // Add the behavior tree for movement
+                AddDragonBehavior(dragon, dragonLocation);
+            }
         }
     }
-}
 
-void ConnectIslands(int stepsBeforeSpiral)
+// Function to connect all consecutive clearings with paths
+void ConnectClearings()
 {
-    if (clearingLocations.Count < 2)
-    {
-        Debug.LogWarning("Not enough islands to connect.");
-        return;
-    }
 
-    System.Random pseudoRandom = new System.Random(seed.GetHashCode());
-
-    // Iterate through all pairs of clearing locations
+    // Connect consecutive clearings
     for (int i = 0; i < clearingLocations.Count - 1; i++)
     {
         Vector2Int start = clearingLocations[i];
         Vector2Int end = clearingLocations[i + 1];
-
-        // Draw a line to connect the two islands
-        // ConnectWithLine(start, end);
-        ConnectWithCubicInterpolation(start, end, pseudoRandom, 2.0f, 1);
+        
+        // Parameters for path generation
+        int numSamplePoints = 13; // Number of points to sample along the shortest path
+        float curviness = 0.9f; // How much the path should curve (0-1)
+        int pathThickness = 1; // Thickness of the path
+        
+        // Generate an S-shaped path between the two clearings
+        CreateSShapedPath(start, end, numSamplePoints, curviness, pathThickness);
     }
 }
 
-void ConnectWithLine(Vector2Int start, Vector2Int end)
+// Create an S-shaped path between two points
+void CreateSShapedPath(Vector2Int start, Vector2Int end, int numSamplePoints, float curviness, int pathThickness)
+{
+    // Step 1: Find the shortest path using A*
+    List<Vector2Int> shortestPath = FindShortestPath(start, end);
+    
+    // If no path was found, create a fallback path
+    if (shortestPath.Count == 0)
+    {
+        Debug.Log($"No path found between {start} and {end}. Creating fallback path.");
+        shortestPath = CreateFallbackPath(start, end);
+    }
+    
+    // Step 2: Sample points from the path
+    List<Vector2Int> sampledPoints = SamplePathPoints(shortestPath, numSamplePoints);
+    
+    // Step 3: Generate an S-shaped curve using cubic interpolation
+    List<Vector2Int> sShapedPath = InterpolateCubicPath(sampledPoints, curviness);
+    
+    // Step 4: Draw the path with the specified thickness
+    DrawPathWithThickness(sShapedPath, pathThickness);
+}
+
+// Find the shortest path between two points using A* algorithm
+List<Vector2Int> FindShortestPath(Vector2Int start, Vector2Int end)
+{
+    // A* algorithm implementation
+    Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
+    Dictionary<Vector2Int, float> gScore = new Dictionary<Vector2Int, float>();
+    Dictionary<Vector2Int, float> fScore = new Dictionary<Vector2Int, float>();
+    
+    // Priority queue implemented with a sorted list
+    List<KeyValuePair<float, Vector2Int>> openSet = new List<KeyValuePair<float, Vector2Int>>();
+    HashSet<Vector2Int> closedSet = new HashSet<Vector2Int>();
+    
+    // Initialize scores
+    gScore[start] = 0;
+    fScore[start] = HeuristicCost(start, end);
+    openSet.Add(new KeyValuePair<float, Vector2Int>(fScore[start], start));
+    
+    while (openSet.Count > 0)
+    {
+        // Get the node with the lowest fScore
+        Vector2Int current = openSet[0].Value;
+        openSet.RemoveAt(0);
+        
+        if (current.Equals(end))
+        {
+            // Reconstruct path
+            return ReconstructPath(cameFrom, current);
+        }
+        
+        closedSet.Add(current);
+        
+        // Check all neighbors
+        Vector2Int[] directions = {
+            new Vector2Int(0, 1),    // up
+            new Vector2Int(1, 0),    // right
+            new Vector2Int(0, -1),   // down
+            new Vector2Int(-1, 0),   // left
+            new Vector2Int(1, 1),    // diagonal up-right
+            new Vector2Int(1, -1),   // diagonal down-right
+            new Vector2Int(-1, -1),  // diagonal down-left
+            new Vector2Int(-1, 1)    // diagonal up-left
+        };
+        
+        foreach (Vector2Int dir in directions)
+        {
+            Vector2Int neighbor = new Vector2Int(current.x + dir.x, current.y + dir.y);
+            
+            // Check if the neighbor is valid
+            if (!IsInMapRange(neighbor.x, neighbor.y) || closedSet.Contains(neighbor))
+                continue;
+            
+            // Check if the neighbor is a wall (value = 1)
+            if (map[neighbor.x, neighbor.y] == 1)
+                continue;
+            
+            // Calculate tentative gScore
+            float tentativeGScore = gScore[current] + 
+                (dir.x != 0 && dir.y != 0 ? 1.414f : 1f); // Diagonal cost is sqrt(2)
+            
+            if (!gScore.ContainsKey(neighbor) || tentativeGScore < gScore[neighbor])
+            {
+                // This path is better than any previous one
+                cameFrom[neighbor] = current;
+                gScore[neighbor] = tentativeGScore;
+                fScore[neighbor] = gScore[neighbor] + HeuristicCost(neighbor, end);
+                
+                // Add to open set if not already there
+                bool found = false;
+                for (int i = 0; i < openSet.Count; i++)
+                {
+                    if (openSet[i].Value.Equals(neighbor))
+                    {
+                        found = true;
+                        openSet[i] = new KeyValuePair<float, Vector2Int>(fScore[neighbor], neighbor);
+                        break;
+                    }
+                }
+                
+                if (!found)
+                {
+                    openSet.Add(new KeyValuePair<float, Vector2Int>(fScore[neighbor], neighbor));
+                }
+                
+                // Keep the open set sorted by fScore
+                openSet.Sort((a, b) => a.Key.CompareTo(b.Key));
+            }
+        }
+    }
+    
+    // No path found
+    return new List<Vector2Int>();
+}
+
+// Create a fallback path when A* fails to find a route
+List<Vector2Int> CreateFallbackPath(Vector2Int start, Vector2Int end)
+{
+    List<Vector2Int> fallbackPath = new List<Vector2Int>();
+    
+    // Add start point
+    fallbackPath.Add(start);
+    
+    // Add a midpoint to create a slight curve
+    Vector2Int midPoint = new Vector2Int(
+        (start.x + end.x) / 2, 
+        (start.y + end.y) / 2
+    );
+    
+    // Add some variance to the midpoint to create a curved path
+    System.Random random = new System.Random(seed.GetHashCode() + start.x * 1000 + end.y);
+    int offsetRange = Mathf.Max(5, Mathf.Min(width, height) / 10);
+    midPoint.x += random.Next(-offsetRange, offsetRange + 1);
+    midPoint.y += random.Next(-offsetRange, offsetRange + 1);
+    
+    // Make sure the midpoint is within map bounds
+    midPoint.x = Mathf.Clamp(midPoint.x, 1, width - 2);
+    midPoint.y = Mathf.Clamp(midPoint.y, 1, height - 2);
+    
+    // Add the midpoint
+    fallbackPath.Add(midPoint);
+    
+    // Add end point
+    fallbackPath.Add(end);
+    
+    // Now add points along the lines between start, mid and end
+    List<Vector2Int> detailedPath = new List<Vector2Int>();
+    
+    // Add points between start and mid
+    AddPointsAlongLine(detailedPath, start, midPoint);
+    
+    // Add points between mid and end
+    AddPointsAlongLine(detailedPath, midPoint, end);
+    
+    return detailedPath;
+}
+
+// Add points along a line using Bresenham's line algorithm
+void AddPointsAlongLine(List<Vector2Int> path, Vector2Int start, Vector2Int end)
 {
     int x0 = start.x;
     int y0 = start.y;
     int x1 = end.x;
     int y1 = end.y;
-
+    
     int dx = Mathf.Abs(x1 - x0);
     int dy = Mathf.Abs(y1 - y0);
-    int sx = (x0 < x1) ? 1 : -1;
-    int sy = (y0 < y1) ? 1 : -1;
+    int sx = x0 < x1 ? 1 : -1;
+    int sy = y0 < y1 ? 1 : -1;
     int err = dx - dy;
-
-    int stepCounter = 0;
-
+    
     while (true)
     {
-        map[x0, y0] = 0; // Mark the path with 2
-        // Check if we've reached the end point
-        if (x0 == x1 && y0 == y1) break;
-
+        path.Add(new Vector2Int(x0, y0));
+        
+        if (x0 == x1 && y0 == y1)
+            break;
+        
         int e2 = 2 * err;
         if (e2 > -dy)
         {
@@ -732,104 +884,130 @@ void ConnectWithLine(Vector2Int start, Vector2Int end)
             err += dx;
             y0 += sy;
         }
-
-        stepCounter++;
     }
 }
-void GenerateSpiralFromPoint(Vector2Int center, System.Random pseudoRandom)
+// Calculate heuristic (Manhattan distance)
+float HeuristicCost(Vector2Int a, Vector2Int b)
 {
-    // Parameters for the spiral
-    float startAngle = (float)pseudoRandom.NextDouble() * 2 * Mathf.PI; // Random starting angle
-    float growthFactor = 0.3f; // Growth factor for the spiral
-    float startDistance = 0.01f; // Starting distance from the center
-    int maxLength = pseudoRandom.Next(30, 50); // Random length for the spiral
-    int direction = pseudoRandom.Next(0, 2) == 0 ? 1 : -1; // Random direction (clockwise or counterclockwise)
-
-    // Generate the spiral
-    GenerateEulerSpiral(center, startAngle, growthFactor, startDistance, maxLength, pseudoRandom, direction, -1);
+    return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
 }
 
-void GenerateBorderSpirals(int numberOfSpirals, System.Random pseudoRandom)
+// Reconstruct the path from start to end
+List<Vector2Int> ReconstructPath(Dictionary<Vector2Int, Vector2Int> cameFrom, Vector2Int current)
 {
-    for (int i = 0; i < numberOfSpirals; i++)
+    List<Vector2Int> path = new List<Vector2Int>();
+    path.Add(current);
+    
+    while (cameFrom.ContainsKey(current))
     {
-        // Select a random border position
-        Vector2Int borderPoint = GetRandomBorderPoint(pseudoRandom);
-
-        // Generate a spiral from the selected border point
-        GenerateSpiralFromPoint(borderPoint, pseudoRandom);
+        current = cameFrom[current];
+        path.Insert(0, current);
     }
+    
+    return path;
 }
 
-Vector2Int GetRandomBorderPoint(System.Random pseudoRandom)
+// Sample points from the path
+List<Vector2Int> SamplePathPoints(List<Vector2Int> path, int numSamplePoints)
 {
-    // Determine which border to use: 0 = top, 1 = bottom, 2 = left, 3 = right
-    int border = pseudoRandom.Next(0, 4);
-
-    switch (border)
+    List<Vector2Int> sampledPoints = new List<Vector2Int>();
+    
+    // Always include start and end points
+    sampledPoints.Add(path[0]);
+    
+    if (path.Count <= 2)
     {
-        case 0: // Top border
-            return new Vector2Int(pseudoRandom.Next(0, width), 0);
-        case 1: // Bottom border
-            return new Vector2Int(pseudoRandom.Next(0, width), height - 1);
-        case 2: // Left border
-            return new Vector2Int(0, pseudoRandom.Next(0, height));
-        case 3: // Right border
-            return new Vector2Int(width - 1, pseudoRandom.Next(0, height));
-        default:
-            return new Vector2Int(0, 0); // Fallback (shouldn't happen)
+        // If path is too short, just return start and end
+        sampledPoints.Add(path[path.Count - 1]);
+        return sampledPoints;
     }
-}
-
-void ConnectWithCubicInterpolation(Vector2Int start, Vector2Int end, System.Random pseudoRandom, float curveIntensity, int thickness)
-{
-    // Define control points for the cubic Bézier curve
-    Vector2 controlPoint1 = new Vector2(
-        start.x + pseudoRandom.Next(-width / 4, width / 4) * curveIntensity,
-        start.y + pseudoRandom.Next(-height / 4, height / 4) * curveIntensity
-    );
-
-    Vector2 controlPoint2 = new Vector2(
-        end.x + pseudoRandom.Next(-width / 4, width / 4) * curveIntensity,
-        end.y + pseudoRandom.Next(-height / 4, height / 4) * curveIntensity
-    );
-
-    // Number of steps to interpolate
-    int steps = 50;
-
-    // Generate the cubic Bézier curve
-    for (int i = 0; i <= steps; i++)
+    
+    // Calculate sample intervals
+    float step = (float)(path.Count - 1) / (numSamplePoints - 1);
+    
+    // Add intermediate points
+    for (int i = 1; i < numSamplePoints - 1; i++)
     {
-        float t = i / (float)steps;
-
-        // Cubic Bézier formula
-        Vector2 point = Mathf.Pow(1 - t, 3) * (Vector2)start +
-                        3 * Mathf.Pow(1 - t, 2) * t * controlPoint1 +
-                        3 * (1 - t) * Mathf.Pow(t, 2) * controlPoint2 +
-                        Mathf.Pow(t, 3) * (Vector2)end;
-
-        // Convert to grid coordinates
-        int gridX = Mathf.RoundToInt(point.x);
-        int gridY = Mathf.RoundToInt(point.y);
-
-        // Ensure the point is within bounds and make the curve thicker
-        SetThickLine(gridX, gridY, thickness);
+        int index = Mathf.FloorToInt(i * step);
+        sampledPoints.Add(path[index]);
     }
+    
+    // Add end point
+    sampledPoints.Add(path[path.Count - 1]);
+    
+    return sampledPoints;
 }
 
-void SetThickLine(int x, int y, int thickness)
+// Create an S-shaped path using cubic interpolation
+List<Vector2Int> InterpolateCubicPath(List<Vector2Int> controlPoints, float curviness)
 {
-    for (int offsetX = -thickness; offsetX <= thickness; offsetX++)
+    if (controlPoints.Count < 2)
+        return controlPoints;
+    
+    List<Vector2Int> resultPath = new List<Vector2Int>();
+    int numSegments = 20; // Number of points to generate per segment
+    
+    for (int i = 0; i < controlPoints.Count - 1; i++)
     {
-        for (int offsetY = -thickness; offsetY <= thickness; offsetY++)
+        Vector2 p0 = i > 0 ? controlPoints[i - 1] : controlPoints[i];
+        Vector2 p1 = controlPoints[i];
+        Vector2 p2 = controlPoints[i + 1];
+        Vector2 p3 = i + 2 < controlPoints.Count ? controlPoints[i + 2] : p2 + (p2 - p1);
+        
+        // Apply curviness to control points
+        Vector2 dir1 = (p2 - p0).normalized * curviness;
+        Vector2 dir2 = (p3 - p1).normalized * curviness;
+        Vector2 cp1 = p1 + dir1 * Vector2.Distance(p1, p2) * 0.5f;
+        Vector2 cp2 = p2 - dir2 * Vector2.Distance(p1, p2) * 0.5f;
+        
+        // Calculate cubic Bezier curve points
+        for (int j = 0; j <= numSegments; j++)
         {
-            int newX = x + offsetX;
-            int newY = y + offsetY;
+            float t = j / (float)numSegments;
+            Vector2 point = CubicBezier(p1, cp1, cp2, p2, t);
+            resultPath.Add(new Vector2Int(Mathf.RoundToInt(point.x), Mathf.RoundToInt(point.y)));
+        }
+    }
+    
+    return resultPath;
+}
 
-            // Ensure the new position is within bounds
-            if (IsInMapRange(newX, newY))
+// Calculate cubic Bezier point
+Vector2 CubicBezier(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, float t)
+{
+    float u = 1 - t;
+    float tt = t * t;
+    float uu = u * u;
+    float uuu = uu * u;
+    float ttt = tt * t;
+    
+    Vector2 p = uuu * p0; // (1-t)^3 * P0
+    p += 3 * uu * t * p1; // 3(1-t)^2 * t * P1
+    p += 3 * u * tt * p2; // 3(1-t) * t^2 * P2
+    p += ttt * p3; // t^3 * P3
+    
+    return p;
+}
+
+// Draw the path with the specified thickness
+void DrawPathWithThickness(List<Vector2Int> path, int thickness)
+{
+    foreach (Vector2Int point in path)
+    {
+        // Draw a "circle" of the specified thickness
+        for (int xOffset = -thickness; xOffset <= thickness; xOffset++)
+        {
+            for (int yOffset = -thickness; yOffset <= thickness; yOffset++)
             {
-                map[newX, newY] = 0; // Set the cell to empty
+                int x = point.x + xOffset;
+                int y = point.y + yOffset;
+                
+                // Check if within circle and map bounds
+                if (xOffset * xOffset + yOffset * yOffset <= thickness * thickness && 
+                    IsInMapRange(x, y))
+                {
+                    map[x, y] = 0; // Set to empty space (0)
+                }
             }
         }
     }
