@@ -8,10 +8,14 @@ The forest is alive, its paths twisting and turning into spirals that defy logic
 As an adventurer, your quest is to uncover the entrance to the **Temple of Eternal Whispers**, but the journey will not be easy. The dragons will test your resolve, leading you deeper into the labyrinthine spirals of the forest. Each clearing you find may hold a clue—or a trap. The spirals are not just paths; they are trials, meant to separate the worthy from the unworthy.  
 
 Will you navigate the enchanted spirals, outwit the dragons, and uncover the temple's secrets? Or will you become another lost soul, forever wandering the mystical paths of *Lónglíng*?  
+# Acknowledgment
+
+This project is heavily inspired by **Sebastian Lague’s** popular tutorial on **Cellular Automata**. His work provided the foundation for the scripts used in this level generator. You can watch the tutorial series here:  [**Sebastian Lague - Cellular Automata Tutorial**](https://www.youtube.com/watch?v=v7yyZZjF1z4&list=PLFt_AvWsXl0eZgMK_DT5_biRkWXftAOf9)
 
 # Level Generator Overview ⚙️
 
-The level generator for **Lónglíng** operates in three distinct stages to create a dense, mystical forest filled with spiraling paths, clearings, and hidden secrets. Below is a detailed breakdown of each stage:
+The level generator for **Lónglíng** operates in three distinct stages to create a dense, mystical forest filled with spiraling paths, clearings, and hidden secrets. Below is a detailed breakdown of each stage.
+
 
 ---
 
@@ -41,16 +45,29 @@ A **clearing** is generated using **Breadth-First Search (BFS)** to create a spa
     - Initially, the probability of clearing a cell is `100%`.
     - After a certain number of guaranteed layers, the probability decreases exponentially using a **decay rate** (e.g., `currentProbability *= probabilityDecayRate`).
   - This creates a natural-looking clearing that is larger in the center and tapers off toward the edges.
-  - Stop when reaching a maximum number of layers `maxLayer`
+  - Stop when reaching a maximum number of layers `maxLayers`
+  - These clearings are later **smoothed** in Stage 2 to make their shapes more organic and irregular.
 
-### 1.3 Generating Dragon Clearings 🐲
-- Additional clearings are generated for the dragons, separate from the temple clearing.
-- Each dragon clearing is created using a similar BFS approach but with smaller sizes and random starting points.
-- These clearings are later **smoothed** in Stage 2 to make their shapes more organic and irregular.
 
-### 1.4 Generating Spirals
-- **Spirals** are generated using the **Euler Spiral formula**, starting from the temple clearing and dragon clearings.
-- **Euler Spiral Formula**:
+**Temple Clearing Parameters ⛩️**
+
+The number of guaranteed layers and maximum layers for the temple is increased to create a larger clearing, ensuring that the temple prefab has sufficient space and fits seamlessly within the environment and also stands out.
+```
+guaranteedLayers = 13
+probabilityDecayRate = 0.9
+maxLayers = 15
+```
+**Dragon Clearing Parameters 🐲**
+```
+guaranteedLayers = 8
+probabilityDecayRate = 0.9
+maxLayers = 15
+```
+
+### Generating Spirals 🌀
+**Spirals** are generated using the **Euler Spiral formula**, starting from the temple clearing and dragon clearings.
+
+**Euler Spiral Formula**:
   - The curvature of the spiral increases linearly with distance, creating a smooth, natural curve.
   - The angle of the spiral is updated iteratively:
     ```csharp
@@ -99,9 +116,7 @@ In our implementation, we approximate this curve iteratively using small steps.
 
 ## Stage 2: Cellular Automata for Smoothing
 
-### Purpose
-- The cellular automata algorithm is applied to **smooth the dragon clearings** and make their shapes more irregular and natural-looking.
-- This enhances the variety and realism of the level.
+The cellular automata algorithm is applied to smooth the dragon and temple clearings and make their shapes more irregular and natural-looking. This enhances the variety and realism of the level.
 
 ### Algorithm
 - For each cell in the grid:
@@ -110,6 +125,8 @@ In our implementation, we approximate this curve iteratively using small steps.
     - If a cell has more than 4 wall neighbors, it becomes a wall (`1`).
     - If a cell has fewer than 4 wall neighbors, it becomes empty (`0`).
 - This process is repeated for a fixed number of iterations (e.g., 5) to achieve the desired smoothing effect.
+
+In order to avoid applying the cellular automata to the clearings we mark them as `map[x,y] = 2` and skip them on the stage 2 part of the code.
 
 ---
 
