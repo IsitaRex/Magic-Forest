@@ -13,7 +13,27 @@ Will you navigate the enchanted spirals, outwit the dragons, and uncover the tem
   <img src="./docs/LevelSamples.png" alt="Some Level Samples" width="800">
 </div>
 
-# Level Generator Overview ⚙️
+# How to Clone and Run the Project ⚙️
+
+1. **Unity Version**:  
+   This project was developed using **Unity 6000.0.35f1**. It is recommended to use this version or a compatible version to avoid compatibility issues.
+
+2. **Clone the Repository**:  
+   Open a terminal or command prompt and run the following command:
+   ```bash
+   git clone https://github.com/your-username/longling-generator.git
+
+3. **Open the Project in Unity:**
+    * Launch Unity Hub.
+    * Click on the Add button and navigate to the folder where the project was cloned.
+    * Select the folder and open it in Unity.
+
+4. **Play the Game:**
+
+    Open the `MainScene.unity` file located in the `Assets/Scenes/` folder.
+  Press the Play button in the Unity Editor to generate a level and explore the mystical forest.
+
+# Level Generator Overview 🕹️
 
 The level generator for **Lónglíng** operates in three distinct stages to create a dense, mystical forest filled with spiraling paths, clearings, and hidden secrets. Below is a detailed breakdown of each stage.
 
