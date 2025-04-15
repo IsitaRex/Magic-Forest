@@ -223,7 +223,7 @@ public class MapGenerator : MonoBehaviour
                     );
 
                     // Instantiate the tree
-                    GameObject tree = Instantiate(treePrefab, position, Quaternion.identity);
+                    GameObject tree = Instantiate(treePrefab, position, Quaternion.Euler(90, 0, 0));
 
                     // Scale the trees randomly to add variety
                     float randomScale = UnityEngine.Random.Range(0.05f, 0.2f);
