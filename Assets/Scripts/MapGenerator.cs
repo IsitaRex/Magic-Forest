@@ -897,13 +897,13 @@ public class MapGenerator : MonoBehaviour
         // Load tree prefabs
         treePrefabs = new GameObject[]
         {
-            Resources.Load<GameObject>("Tree1"),
-            Resources.Load<GameObject>("Tree2"),
-            Resources.Load<GameObject>("Tree3")
+            Resources.Load<GameObject>("Prefabs/Tree1"),
+            Resources.Load<GameObject>("Prefabs/Tree2"),
+            Resources.Load<GameObject>("Prefabs/Tree3")
         };
 
         // Load the temple prefab
-        templePrefab = Resources.Load<GameObject>("Temple");
+        templePrefab = Resources.Load<GameObject>("Prefabs/Temple");
         if (templePrefab == null)
         {
             Debug.LogError("Temple prefab not found in Resources folder!");
@@ -913,7 +913,7 @@ public class MapGenerator : MonoBehaviour
         dragonPrefabs = new GameObject[4];
         for (int i = 0; i < 4; i++)
         {
-            dragonPrefabs[i] = Resources.Load<GameObject>($"Dragon{i + 1}");
+            dragonPrefabs[i] = Resources.Load<GameObject>($"Prefabs/Dragon{i + 1}");
             if (dragonPrefabs[i] == null)
             {
                 Debug.LogError($"Dragon{i + 1} prefab not found in Resources folder!");
@@ -921,7 +921,7 @@ public class MapGenerator : MonoBehaviour
         }
 
         // Load the player prefab
-        playerPrefab = Resources.Load<GameObject>("Player");
+        playerPrefab = Resources.Load<GameObject>("Prefabs/Player");
         if (playerPrefab == null)
         {
             Debug.LogError("Player prefab not found in Resources folder!");
