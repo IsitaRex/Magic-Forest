@@ -21,7 +21,7 @@ Will you navigate the enchanted spirals, outwit the dragons, and uncover the tem
 2. **Clone the Repository**:  
    Open a terminal or command prompt and run the following command:
    ```bash
-   git clone https://github.com/your-username/longling-generator.git
+   git clone https://github.com/IsitaRex/Magic-Forest.git
 
 3. **Open the Project in Unity:**
     * Launch Unity Hub.
