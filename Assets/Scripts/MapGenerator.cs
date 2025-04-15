@@ -21,7 +21,7 @@ public class MapGenerator : MonoBehaviour
 
 	int[,] map;
 	private List<GameObject> dragons = new List<GameObject>(); // List to store all dragon instances
-	private Vector3 dragonScale = new Vector3(1, 2, 1); // Default scale of the dragon
+	private Vector3 dragonScale = new Vector3(1, 1, 1); // Default scale of the dragon
 	private NPBehave.Root dragonBehaviorTree;
 	private float dragonMoveSpeed = 0.5f; // Time in seconds between movements
     private GameObject[] dragonPrefabs; // Array to store dragon prefabs
