@@ -9,6 +9,10 @@ As an adventurer, your quest is to uncover the entrance to the **Temple of Etern
 
 Will you navigate the enchanted spirals, outwit the dragons, and uncover the temple's secrets? Or will you become another lost soul, forever wandering the mystical paths of *Lónglíng*?  
 
+<div align="center">
+  <img src="./docs/LevelSamples.png" alt="Some Level Samples" width="800">
+</div>
+
 # Level Generator Overview ⚙️
 
 The level generator for **Lónglíng** operates in three distinct stages to create a dense, mystical forest filled with spiraling paths, clearings, and hidden secrets. Below is a detailed breakdown of each stage.
@@ -91,23 +95,7 @@ The cellular automata algorithm is applied to smooth the clearings and make thei
 ### Populating Map with Spirals 🌀
 **Spirals** are generated using the **Euler Spiral formula**, starting from the temple clearing and dragon clearings.
 
-The **Euler Spiral**, also known as the **Clothoid**, is a curve whose curvature increases linearly with its arc length. This property makes it ideal for generating smooth, natural-looking spirals. The mathematical formulation of the Euler Spiral is based on parametric equations:
-
-#### **Mathematical Formulation**
-The position `(x, y)` of a point on the Euler Spiral is given by:
-```math
-x(s) = \int_0^s \cos(\theta(t)) \, dt
-y(s) = \int_0^s \sin(\theta(t)) \, dt
-```
-Where 
-- `s` is the s is the arc length (distance along the curve).
-- `θ(t)` is the angle of the tangent to the curve at distance t, defined as:
-```math
-\theta(t) = \theta_0 + k \cdot t
-```
-- `θ_0`: Initial angle (starting direction of the spiral).
-- `k`: Curvature rate, which increases linearly with `t`.
-In our implementation, we approximate this curve iteratively using small steps.
+The **Euler Spiral**, also known as the **Clothoid**, is a curve whose curvature increases linearly with its arc length. This property makes it ideal for generating smooth, natural-looking spirals. 
 
 **Implementation**:
   - The curvature of the spiral increases linearly with distance, creating a smooth, natural curve.
