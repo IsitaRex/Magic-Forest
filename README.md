@@ -9,9 +9,11 @@ As an adventurer, your quest is to uncover the entrance to the **Temple of Etern
 
 Will you navigate the enchanted spirals, outwit the dragons, and uncover the temple's secrets? Or will you become another lost soul, forever wandering the mystical paths of *Lónglíng*?  
 
-<div align="center">
-  <img src="./docs/LevelSamples.png" alt="Some Level Samples" width="800">
-</div>
+
+
+
+https://github.com/user-attachments/assets/423e62e7-85d8-43ae-a364-0fdff06eb2ad
+
 
 # How to Clone and Run the Project ⚙️
 
@@ -36,9 +38,12 @@ Will you navigate the enchanted spirals, outwit the dragons, and uncover the tem
 # Level Generator Overview 🕹️
 
 The level generator for **Lónglíng** operates in three distinct stages to create a dense, mystical forest filled with spiraling paths, clearings, and hidden secrets. Below is a detailed breakdown of each stage.
-
-
 ---
+
+<div align="center">
+  <img src="./docs/LevelSamples.png" alt="Some Level Samples" width="800">
+</div>
+
 
 ## **Stage 1:** Initial Grid Generation
 
